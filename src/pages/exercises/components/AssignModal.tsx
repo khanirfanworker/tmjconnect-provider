@@ -22,6 +22,7 @@ export function AssignModal({ exercise, onClose }: Props) {
   const { data: patients = [] } = useQuery<import('@/services/dashboardService').PatientRow[]>({  
     queryKey: ['patients'],
     queryFn: () => dashboardService.getPatients(),
+    staleTime: 1000 * 60 * 5,
   })
 
   const filtered = patients.filter((p) =>

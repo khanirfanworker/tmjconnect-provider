@@ -14,6 +14,7 @@ export default function PatientsPage() {
   const { data: patients = [], isLoading } = useQuery<import('@/services/dashboardService').PatientRow[]>({  
     queryKey: ['patients'],
     queryFn: () => dashboardService.getPatients(),
+    staleTime: 1000 * 60 * 5,
   })
 
   const filtered = useMemo(() =>

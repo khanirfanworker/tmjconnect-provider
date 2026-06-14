@@ -59,7 +59,7 @@ export default function HelpPage() {
   const filteredFaqs = FAQS.filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div className="rounded-2xl px-8 py-8 space-y-5" style={{ backgroundColor: '#0e2040' }}>
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#c49526' }}>Help Center</p>
@@ -83,12 +83,12 @@ export default function HelpPage() {
         {[
           { icon: FileText, title: 'Documentation', desc: 'Full guides for every feature — onboarding, exercises, reports.', cta: '42 articles →' },
           { icon: Video, title: 'Video tutorials', desc: 'Walkthroughs from the TMJConnect clinical team. Under 5 minutes each.', cta: '12 videos →' },
-          { icon: MessageCircle, title: 'Contact support', desc: 'Human support via email or live chat. 4-hour response on business days.', cta: 'Start a conversation →' },
-        ].map(({ icon: Icon, title, desc, cta }) => (
+          { icon: MessageCircle, title: 'Contact support', desc: 'Human support via email or live chat. 4-hour response on business days.', cta: 'Start a conversation →', onCta: () => document.getElementById('still-need-help')?.scrollIntoView({ behavior: 'smooth' }) },
+        ].map(({ icon: Icon, title, desc, cta, onCta }) => (
           <div key={title} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 hover:shadow-md transition-shadow cursor-pointer group">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 border border-slate-200"><Icon size={18} className="text-slate-600" /></div>
             <div><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="text-xs text-slate-500 mt-1 leading-relaxed">{desc}</p></div>
-            <button className="text-xs font-semibold hover:underline" style={{ color: '#c49526' }}>{cta}</button>
+            <button onClick={onCta} className="text-xs font-semibold hover:underline" style={{ color: '#c49526' }}>{cta}</button>
           </div>
         ))}
       </div>
@@ -106,7 +106,7 @@ export default function HelpPage() {
             </div>
           ))}
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+        <div id="still-need-help" className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Still need help?</h3>
             <p className="text-xs text-slate-400 mt-0.5">Submit a ticket — we reply within 4 business hours.</p>

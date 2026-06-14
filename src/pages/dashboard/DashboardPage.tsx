@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const { data: patients = [], isLoading: patientsLoading, error: patientsError } = useQuery<PatientRow[]>({ 
     queryKey: ['patients'],
     queryFn: (): Promise<PatientRow[]> => dashboardService.getPatients(),
+    staleTime: 1000 * 60 * 5,
   })
 
   // Filter
@@ -122,7 +123,7 @@ export default function DashboardPage() {
           <Button size="md" onClick={() => navigate('/invite')}>
             <UserPlus size={15} /> Generate invite code
           </Button>
-          <Button variant="secondary" size="md" onClick={() => navigate('/help')}>
+          <Button variant="secondary" size="md" disabled>
             Take the product tour
           </Button>
         </div>

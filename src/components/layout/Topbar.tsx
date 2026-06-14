@@ -91,22 +91,10 @@ export function Topbar({ onMenuClick, sidebarOpen }: TopbarProps) {
           className="hidden md:flex items-center gap-2 rounded-lg border border-slate-200
                      bg-slate-50 px-3 py-2 text-sm text-slate-400 cursor-pointer
                      hover:border-slate-300 hover:bg-slate-100 transition-colors"
-          style={{ width: 220 }}
+          style={{ width: 280 }}
         >
           <Search size={13} className="flex-shrink-0 text-slate-400" />
           <span className="flex-1 text-left text-xs text-slate-400">Search patients, reports…</span>
-          <kbd
-            className="flex-shrink-0 flex items-center gap-0.5 rounded border px-1.5 py-0.5
-                       text-xs font-medium leading-none"
-            style={{
-              backgroundColor: '#f1f5f9',
-              borderColor: '#e2e8f0',
-              color: '#94a3b8',
-              fontSize: '11px',
-            }}
-          >
-            ⌘K
-          </kbd>
         </button>
 
         {showSearch && <GlobalSearch onClose={() => setShowSearch(false)} />}
@@ -151,15 +139,6 @@ export function Topbar({ onMenuClick, sidebarOpen }: TopbarProps) {
           <Settings size={17} />
         </Link>
 
-        {/* Avatar */}
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-full
-                     text-xs font-bold cursor-pointer flex-shrink-0"
-          style={{ backgroundColor: '#c49526', color: '#0e2040' }}
-          title={provider?.fullName}
-        >
-          {initials}
-        </div>
       </div>
 
     </header>

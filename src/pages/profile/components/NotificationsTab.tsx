@@ -40,6 +40,7 @@ export function NotificationsTab() {
   const { data: initial } = useQuery({
     queryKey: ['notif-prefs'],
     queryFn:  profileService.getNotifPrefs,
+    staleTime: 1000 * 60 * 5,
   })
 
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null)

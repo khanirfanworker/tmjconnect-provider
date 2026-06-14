@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  User, Shield, Bell, CreditCard,
+  User, Shield, Bell,
   HelpCircle, FileText, Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -10,8 +10,7 @@ const NAV_ITEMS = [
   { to: '/profile',               label: 'Profile',             Icon: User },
   { to: '/profile/security',      label: 'Security & sessions', Icon: Shield },
   { to: '/profile/notifications', label: 'Notifications',       Icon: Bell },
-  { to: '/profile/billing',       label: 'Billing & plan',      Icon: CreditCard },
-  { section: 'SUPPORT' },
+{ section: 'SUPPORT' },
   { to: '/help',                  label: 'Help & support',      Icon: HelpCircle },
   { to: '/profile/legal',         label: 'Legal & documents',   Icon: FileText },
   { danger: true },

@@ -313,11 +313,8 @@ export default function PatientDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowRequest(true)}>
-              <Send size={14} /> Request report
-            </Button>
             <Button size="sm" onClick={() => setShowAssign(true)}>
-              Respond to report <ArrowRight size={14} />
+              <Dumbbell size={14} /> Assign exercises
             </Button>
           </div>
         </div>
@@ -360,7 +357,7 @@ export default function PatientDetailPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-slate-700 mb-4">14-Day Pain Trend</h3>
             <div className="flex items-center justify-center py-2">
-              <Sparkline data={patient.painTrend} width={400} height={80} />
+              <Sparkline data={patient.painTrend} width={400} height={80} linkedSince={patient.linkedSince} />
             </div>
           </div>
 
@@ -434,8 +431,18 @@ export default function PatientDetailPage() {
               Loading symptom logs…
             </div>
           ) : symptoms.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
-              No symptom logs recorded yet.
+            <div className="rounded-2xl border border-slate-100 p-12 text-center space-y-2"
+                 style={{ backgroundColor: '#f8f9fa' }}>
+              <div className="flex justify-center mb-3">
+                <div className="h-12 w-12 rounded-full flex items-center justify-center"
+                     style={{ backgroundColor: '#e9ecef' }}>
+                  <Activity size={22} style={{ color: '#adb5bd' }} />
+                </div>
+              </div>
+              <p className="text-sm font-medium" style={{ color: '#868e96' }}>No symptom logs yet</p>
+              <p className="text-xs" style={{ color: '#adb5bd' }}>
+                Logs will appear here once the patient starts tracking their symptoms.
+              </p>
             </div>
           ) : (
             <>

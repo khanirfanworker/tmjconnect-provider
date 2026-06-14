@@ -141,16 +141,98 @@ function InviteCodeModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ── Disconnect Confirm Modal ─────────────────────────────────────────────────
+function DisconnectModal({
+  link,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  link: ActiveLink
+  onConfirm: () => void
+  onCancel: () => void
+  isPending: boolean
+}) {
+  const initials = link.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const colors = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b']
+  const color  = colors[link.fullName.charCodeAt(0) % colors.length]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+         onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel() }}>
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden"
+           onMouseDown={(e) => e.stopPropagation()}>
+
+        {/* Icon */}
+        <div className="flex justify-center pt-7 pb-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full"
+               style={{ backgroundColor: '#fff1f2', border: '2px solid #fecaca' }}>
+            <UserX size={24} style={{ color: '#dc2626' }} />
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 text-center space-y-2">
+          <h2 className="text-base font-bold text-slate-900">Disconnect patient?</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            This will remove your link with
+          </p>
+
+          {/* Patient chip */}
+          <div className="flex items-center justify-center gap-2.5 py-2">
+            <div className="h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center
+                            text-white text-xs font-bold"
+                 style={{ backgroundColor: color }}>
+              {initials}
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-900">{link.fullName}</p>
+              <p className="text-xs text-slate-400">{link.email}</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            The patient will lose access to your exercises and you will no longer receive their reports.
+            <span className="font-semibold text-slate-600"> This cannot be undone.</span>
+          </p>
+        </div>
+
+        <div className="flex gap-2.5 px-6 pb-6">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm
+                       font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white
+                       transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#dc2626' }}
+          >
+            {isPending && <Loader2 size={14} className="animate-spin" />}
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvitePage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('active')
-  const [showModal, setShowModal] = useState(false)
+  const [activeTab, setActiveTab]           = useState<TabKey>('active')
+  const [showModal, setShowModal]           = useState(false)
+  const [disconnectTarget, setDisconnectTarget] = useState<ActiveLink | null>(null)
   const queryClient = useQueryClient()
 
   // ── Data fetching ──────────────────────────────────────────────────────
   const { data: metrics } = useQuery({
     queryKey: ['linking-metrics'],
     queryFn:  () => inviteService.getMetrics(),
+    staleTime: 1000 * 60 * 2,
   })
 
   const { data: links = [], isLoading: linksLoading } = useQuery<ActiveLink[]>({
@@ -171,6 +253,7 @@ export default function InvitePage() {
     onSuccess:  () => {
       queryClient.invalidateQueries({ queryKey: ['active-links'] })
       queryClient.invalidateQueries({ queryKey: ['linking-metrics'] })
+      setDisconnectTarget(null)
     },
   })
 
@@ -294,13 +377,8 @@ export default function InvitePage() {
                             <td className="px-4 py-3 text-sm text-slate-500">{link.diagnosis ?? '—'}</td>
                             <td className="px-4 py-3">
                               <button
-                                onClick={() => {
-                                  if (window.confirm(`Disconnect ${link.fullName}? This cannot be undone.`)) {
-                                    disconnect.mutate(link.link_id)
-                                  }
-                                }}
+                                onClick={() => setDisconnectTarget(link)}
                                 className="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline transition-colors"
-                                disabled={disconnect.isPending}
                               >
                                 Disconnect
                               </button>
@@ -395,6 +473,15 @@ export default function InvitePage() {
           queryClient.invalidateQueries({ queryKey: ['linking-metrics'] })
           queryClient.removeQueries({ queryKey: ['generate-code'] })
         }} />
+      )}
+
+      {disconnectTarget && (
+        <DisconnectModal
+          link={disconnectTarget}
+          isPending={disconnect.isPending}
+          onConfirm={() => disconnect.mutate(disconnectTarget.link_id)}
+          onCancel={() => setDisconnectTarget(null)}
+        />
       )}
     </div>
   )

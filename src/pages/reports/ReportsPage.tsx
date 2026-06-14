@@ -51,6 +51,7 @@ export default function ReportsPage() {
   const { data: fetchedReports = [], isLoading } = useQuery<ReportDetail[]>({
     queryKey: ['reports'],
     queryFn:  reportsService.getReports,
+    staleTime: 1000 * 60 * 2,
   })
 
   const { data: reportRequests = [], isLoading: reqLoading } = useQuery<ReportRequest[]>({

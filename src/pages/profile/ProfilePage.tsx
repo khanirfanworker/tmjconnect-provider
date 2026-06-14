@@ -36,6 +36,7 @@ export default function ProfilePage() {
   const avatarRef   = useRef<HTMLInputElement>(null)
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null)
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
 
   // Load real profile from API
   const { data: profile, isLoading } = useQuery({
@@ -148,7 +149,7 @@ export default function ProfilePage() {
                           const f = e.target.files?.[0]
                           if (!f) return
                           if (!['image/jpeg', 'image/png'].includes(f.type)) {
-                            alert('Only JPEG and PNG images are supported.')
+                            setAvatarError('Only JPEG and PNG images are supported.')
                             e.target.value = ''
                             return
                           }
@@ -166,6 +167,9 @@ export default function ProfilePage() {
                       <p className="text-xs text-slate-400 mt-0.5">
                         Click the camera to update your photo
                       </p>
+                      {avatarError && (
+                        <Alert message={avatarError} onDismiss={() => setAvatarError(null)} />
+                      )}
                     </div>
                   </div>
 

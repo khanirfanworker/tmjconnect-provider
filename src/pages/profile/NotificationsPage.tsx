@@ -43,10 +43,10 @@ const PREF_ROWS: PrefRow[] = [
 ]
 
 const DIGEST_OPTIONS: { value: string; label: string }[] = [
-  { value: 'instant', label: 'Instant â€" notify me right away' },
-  { value: 'daily',   label: 'Daily digest â€" one email per day' },
-  { value: 'weekly',  label: 'Weekly digest â€" one email per week' },
-  { value: 'off',     label: 'Off â€" no email notifications' },
+  { value: 'instant', label: 'Instant : notify me right away' },
+  { value: 'daily',   label: 'Daily digest : one email per day' },
+  { value: 'weekly',  label: 'Weekly digest : one email per week' },
+  { value: 'off',     label: 'Off : no email notifications' },
 ]
 
 function Toggle({ on, locked, onChange }: { on: boolean; locked?: boolean; onChange: () => void }) {
@@ -80,6 +80,7 @@ export default function NotificationsPage() {
   const { data: fetchedPrefs, isLoading, isError } = useQuery<NotificationPrefs>({
     queryKey: ['notif-prefs'],
     queryFn:  profileService.getNotifPrefs,
+    staleTime: 1000 * 60 * 5,
   })
 
   // Sync remote prefs into local state on first load

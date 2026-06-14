@@ -119,7 +119,7 @@ export const authService = {
     await preAuthApi.post('/auth/resend-verify-email', { email })
   },
 
-  /** POST /auth/mfa/setup — Bearer: setup_token */
+  /** POST /auth/mfa/setup — Bearer: setup_token (onboarding) */
   async initMfaSetup(setupToken: string): Promise<MfaSetupResponse> {
     const { data } = await preAuthApi.post('/auth/mfa/setup', {}, {
       headers: { Authorization: `Bearer ${setupToken}` },
@@ -127,11 +127,23 @@ export const authService = {
     return unwrap<MfaSetupResponse>(data)
   },
 
-  /** POST /auth/mfa/verify-setup — Bearer: setup_token, body: { code } */
+  /** POST /auth/mfa/verify-setup — Bearer: setup_token, body: { code } (onboarding) */
   async verifyMfaSetup(setupToken: string, code: string): Promise<MfaVerifySetupResponse> {
     const { data } = await preAuthApi.post('/auth/mfa/verify-setup', { code }, {
       headers: { Authorization: `Bearer ${setupToken}` },
     })
+    return unwrap<MfaVerifySetupResponse>(data)
+  },
+
+  /** POST /auth/mfa/setup — Bearer: access_token (reconfigure from settings) */
+  async reconfigureMfaSetup(): Promise<MfaSetupResponse> {
+    const { data } = await api.post('/auth/mfa/setup', {})
+    return unwrap<MfaSetupResponse>(data)
+  },
+
+  /** POST /auth/mfa/verify-setup — Bearer: access_token, body: { code } (reconfigure from settings) */
+  async reconfigureMfaVerify(code: string): Promise<MfaVerifySetupResponse> {
+    const { data } = await api.post('/auth/mfa/verify-setup', { code })
     return unwrap<MfaVerifySetupResponse>(data)
   },
 

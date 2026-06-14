@@ -18,9 +18,9 @@ type Freq     = '1x_daily' | '2x_daily' | '3x_daily'
 type Duration = '1_week' | '2_weeks' | '1_month' | 'ongoing'
 
 const FREQ_OPTIONS: { key: Freq; label: string; recommended?: boolean }[] = [
-  { key: '2x_daily', label: '2x daily', recommended: true },
-  { key: '1x_daily', label: '1x daily' },
-  { key: '3x_daily', label: '3x daily' },
+  { key: '2x_daily', label: '2× daily', recommended: true },
+  { key: '1x_daily', label: '1× daily' },
+  { key: '3x_daily', label: '3× daily' },
 ]
 
 const DUR_OPTIONS: { key: Duration; label: string }[] = [
@@ -57,6 +57,12 @@ export function PatientAssignModal({ patient, onClose }: Props) {
     queryKey: ['exercises'],
     queryFn:  exercisesService.getExercises,
     staleTime: 1000 * 60 * 5,
+  })
+
+  const { data: existingAssignments = [] } = useQuery({
+    queryKey: ['patient-assignments', patient.id],
+    queryFn:  () => exercisesService.getPatientAssignments(patient.id),
+    staleTime: 1000 * 60 * 2,
   })
 
   const filtered = useMemo(() => {
@@ -118,9 +124,11 @@ export function PatientAssignModal({ patient, onClose }: Props) {
         <div className="px-6 pt-5 pb-4 border-b border-slate-100">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute top-4 right-4 flex h-7 w-7 items-center justify-center
+                       rounded-lg border border-slate-200 bg-white text-slate-400
+                       hover:text-slate-600 hover:border-slate-300 transition-colors"
           >
-            <X size={18} />
+            <X size={14} />
           </button>
           <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#c49526' }}>
             Assign Exercises
@@ -139,7 +147,7 @@ export function PatientAssignModal({ patient, onClose }: Props) {
                 )}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {patient.exerciseAdherence}% adherence last 7 days
+                Current plan: {existingAssignments.length} exercise{existingAssignments.length !== 1 ? 's' : ''} · {patient.exerciseAdherence}% adherence last 7 days
               </p>
             </div>
           </div>
@@ -161,21 +169,23 @@ export function PatientAssignModal({ patient, onClose }: Props) {
             {/* ── LEFT: Exercise picker ─────────────────────────── */}
             <div className="flex flex-col w-[52%] border-r border-slate-100 overflow-hidden">
               <div className="px-4 pt-4 pb-3 space-y-2.5">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Pick from library
-                </p>
-                {/* Search */}
-                <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search exercises..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2
-                               text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none
-                               focus:border-slate-300"
-                  />
+                {/* Pick from library + Search on same line */}
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                    Pick from library
+                  </p>
+                  <div className="relative flex-1">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search exercises..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5
+                                 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none
+                                 focus:border-slate-300"
+                    />
+                  </div>
                 </div>
                 {/* Category pills */}
                 <div className="flex flex-wrap gap-1.5">
@@ -269,12 +279,14 @@ export function PatientAssignModal({ patient, onClose }: Props) {
             </div>
 
             {/* ── RIGHT: Assignment settings ────────────────────── */}
-            <div className="flex flex-col w-[48%] overflow-y-auto px-5 pt-4 pb-8 space-y-5">
+            <div className="flex flex-col w-[48%] overflow-y-auto px-5 pt-4 pb-8 space-y-5"
+                 style={{ backgroundColor: '#f5f3ef' }}>
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
                   Assignment · {selected.size} selected
                 </p>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+                <div className="rounded-xl border px-4 py-3 text-xs leading-relaxed text-slate-700"
+                     style={{ backgroundColor: '#fffbf0', borderColor: '#f0d88a' }}>
                   {patient.fullName.split(' ')[0]} will see these in their daily queue starting{' '}
                   <strong>tomorrow</strong> and receive a push notification.
                 </div>
@@ -287,32 +299,24 @@ export function PatientAssignModal({ patient, onClose }: Props) {
                   {FREQ_OPTIONS.map(({ key, label, recommended }) => (
                     <label
                       key={key}
-                      className={cn(
-                        'flex items-center justify-between rounded-xl border px-4 py-2.5 transition-all',
-                        freq === key
-                          ? 'border-slate-900 bg-slate-900'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      )}
+                      className="flex items-center justify-between rounded-xl border bg-white px-4 py-2.5 transition-all cursor-pointer hover:border-slate-300"
+                      style={{ borderColor: freq === key ? '#c49526' : '#e2e8f0' }}
                     >
                       <div className="flex items-center gap-2.5">
                         <div
-                          className={cn(
-                            'flex h-4 w-4 items-center justify-center rounded-full border-2 transition-all',
-                            freq === key ? 'border-white bg-white' : 'border-slate-300'
-                          )}
+                          className="flex h-4 w-4 items-center justify-center rounded-full border-2 transition-all flex-shrink-0"
+                          style={{ borderColor: freq === key ? '#c49526' : '#cbd5e1' }}
                         >
                           {freq === key && (
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#0e2040' }} />
+                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#c49526' }} />
                           )}
                         </div>
-                        <span className={cn('text-sm font-medium', freq === key ? 'text-white' : 'text-slate-700')}>
-                          {label}
-                        </span>
+                        <span className="text-sm font-medium text-slate-700">{label}</span>
                       </div>
                       {recommended && (
                         <span
                           className="text-xs font-semibold rounded-full px-2 py-0.5"
-                          style={{ backgroundColor: freq === key ? 'rgba(196,149,38,0.25)' : '#fdf8ec', color: '#c49526' }}
+                          style={{ backgroundColor: '#fdf8ec', color: '#c49526' }}
                         >
                           Recommended
                         </span>
@@ -329,13 +333,13 @@ export function PatientAssignModal({ patient, onClose }: Props) {
               {/* Duration */}
               <div>
                 <p className="text-xs font-semibold text-slate-700 mb-2">Duration</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2">
                   {DUR_OPTIONS.map(({ key, label }) => (
                     <button
                       key={key}
                       onClick={() => setDur(key)}
                       className={cn(
-                        'rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all',
+                        'flex-1 rounded-full border py-1.5 text-xs font-semibold transition-all whitespace-nowrap',
                         dur === key
                           ? 'text-white border-transparent'
                           : 'text-slate-600 bg-white border-slate-200 hover:border-slate-300'
@@ -358,7 +362,7 @@ export function PatientAssignModal({ patient, onClose }: Props) {
                   onChange={(e) => setNote(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3
                              text-xs text-slate-900 placeholder:text-slate-400 resize-none
-                             focus:outline-none focus:border-slate-300"
+                             focus:outline-none focus:border-amber-300"
                 />
               </div>
 

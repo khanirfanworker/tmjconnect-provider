@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom'
-import { MoreHorizontal } from 'lucide-react'
 import { Sparkline } from '@/components/ui/Sparkline'
 import { StatusBadge } from '@/components/ui/Badge'
 import type { PatientRow } from '@/services/dashboardService'
@@ -102,9 +101,9 @@ function PatientRow({ patient, onClick }: { patient: PatientRow; onClick: () => 
             <p className="text-sm font-semibold text-slate-900 truncate">
               {patient.fullName}
             </p>
-            <p className="text-xs text-slate-400 truncate">
-              {patient.condition} · {patient.linkedVia}
-            </p>
+            {patient.condition && (
+              <p className="text-xs text-slate-400 truncate">{patient.condition}</p>
+            )}
           </div>
         </div>
       </td>
@@ -141,7 +140,7 @@ function PatientRow({ patient, onClick }: { patient: PatientRow; onClick: () => 
 
       {/* 14-day sparkline */}
       <td className="px-4 py-3.5">
-        <Sparkline data={patient.painTrend} width={110} height={32} />
+        <Sparkline data={patient.painTrend} width={110} height={32} linkedSince={patient.linkedSince} />
       </td>
 
       {/* Status badge */}
@@ -149,16 +148,6 @@ function PatientRow({ patient, onClick }: { patient: PatientRow; onClick: () => 
         <StatusBadge status={patient.status as PatientStatus} />
       </td>
 
-      {/* Actions menu */}
-      <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
-        <button
-          className="flex h-7 w-7 items-center justify-center rounded-lg
-                     text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          aria-label="Patient actions"
-        >
-          <MoreHorizontal size={16} />
-        </button>
-      </td>
     </tr>
   )
 }

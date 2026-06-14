@@ -1,15 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, Play,
-  LogOut, ChevronRight, Search, GraduationCap,
+  LogOut, ChevronRight, GraduationCap,
   Link as LinkIcon, Settings, HelpCircle,
 } from 'lucide-react'
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { dashboardService } from '@/services/dashboardService'
 import { reportsService } from '@/services/reportsService'
-import { GlobalSearch } from '@/components/ui/GlobalSearch'
 import { cn } from '@/lib/cn'
 
 interface SidebarProps {
@@ -19,7 +17,6 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const { provider, logout } = useAuthStore()
   const navigate = useNavigate()
-  const [showSearch, setShowSearch] = useState(false)
 
   // Live patient count
   const { data: patients = [] } = useQuery({
@@ -98,21 +95,6 @@ export function Sidebar({ onClose }: SidebarProps) {
         </div>
       </div>
 
-      {/* ── Search bar ───────────────────────────────────── */}
-      <div className="px-3 pb-3">
-        <button
-          onClick={() => setShowSearch(true)}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors hover:bg-white/10"
-          style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-        >
-          <Search size={13} style={{ color: 'rgba(255,255,255,0.4)' }} />
-          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-            Search patients, reports…
-          </span>
-        </button>
-      </div>
-
-      {showSearch && <GlobalSearch onClose={() => setShowSearch(false)} />}
 
       {/* ── Workspace section ─────────────────────────────── */}
       <div className="px-3 pb-1">

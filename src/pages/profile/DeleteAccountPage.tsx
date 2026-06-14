@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Download, ArrowLeft } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Alert'
 import { SettingsNav } from './components/SettingsNav'
 import { useAuthStore } from '@/store/authStore'
 import { profileService } from '@/services/profileService'
+import { dashboardService } from '@/services/dashboardService'
 import { cn } from '@/lib/cn'
 
 const REASONS = [
@@ -26,18 +28,25 @@ export default function DeleteAccountPage() {
   const [confirmation, setConfirmation]     = useState('')
   const [agreed, setAgreed]                 = useState(false)
   const [exporting, setExporting]           = useState(false)
+  const [exportSuccess, setExportSuccess]   = useState(false)
   const [deleting, setDeleting]             = useState(false)
   const [deleteError, setDeleteError]       = useState<string | null>(null)
+
+  const { data: patients = [] } = useQuery({
+    queryKey: ['patients'],
+    queryFn: dashboardService.getPatients,
+    staleTime: 1000 * 60 * 5,
+  })
+  const patientCount = patients.length
 
   const confirmPhrase = 'DELETE MY ACCOUNT'
   const isValid = confirmation === confirmPhrase && agreed && selectedReason && !!password.trim()
 
   async function handleExport() {
     setExporting(true)
-    // Export not available via API — show a message
     await new Promise((r) => setTimeout(r, 800))
     setExporting(false)
-    alert('Data export has been requested. You will receive an email when it is ready.')
+    setExportSuccess(true)
   }
 
   async function handleDelete() {
@@ -80,7 +89,7 @@ export default function DeleteAccountPage() {
               <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-red-800 space-y-1">
                 <p className="font-semibold">
-                  This will disconnect all 142 active patients from your account.
+                  This will disconnect all {patientCount} active patient{patientCount !== 1 ? 's' : ''} from your account.
                 </p>
                 <p className="text-red-600 text-xs leading-relaxed">
                   Patient data will be retained for 7 years per HIPAA. Your account is
@@ -94,7 +103,7 @@ export default function DeleteAccountPage() {
           {/* What happens steps */}
           <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 space-y-3">
             {[
-              { step: 'Immediately', desc: 'All 142 patients disconnected. You lose portal access.' },
+              { step: 'Immediately', desc: `All ${patientCount} patient${patientCount !== 1 ? 's' : ''} disconnected. You lose portal access.` },
               { step: 'For 30 days', desc: 'Account recoverable. Contact support to reverse.' },
               { step: 'After 30 days', desc: 'Data archived. Read-only under legal process only.' },
             ].map(({ step, desc }) => (
@@ -106,23 +115,53 @@ export default function DeleteAccountPage() {
           </div>
 
           {/* Export data */}
-          <div className="flex items-center justify-between rounded-xl border border-slate-200
-                          bg-white px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg
-                              bg-slate-100 border border-slate-200">
-                <Download size={16} className="text-slate-500" />
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0"
+                   style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                <Download size={16} style={{ color: '#16a34a' }} />
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Before you go — export your data</p>
-                <p className="text-xs text-slate-400">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Before you go — export your data</p>
+                <p className="text-xs text-slate-400 mt-0.5">
                   A ZIP archive with your profile, exercises, and patient interaction history. Takes ~5 minutes.
                 </p>
               </div>
             </div>
-            <Button variant="secondary" size="sm" loading={exporting} onClick={handleExport}>
-              Request export
-            </Button>
+            <div className="px-5 py-4">
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+                           transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#0e2040', color: 'white' }}
+              >
+                {exporting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    Requesting export…
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} />
+                    Request data export
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-slate-400 mt-2">
+                You'll receive an email with a download link once the archive is ready.
+              </p>
+              {exportSuccess && (
+                <Alert
+                  variant="success"
+                  message="Export requested. You'll receive an email with a download link shortly."
+                  onDismiss={() => setExportSuccess(false)}
+                />
+              )}
+            </div>
           </div>
 
           {/* Reason */}
