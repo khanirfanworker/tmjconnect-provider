@@ -1,6 +1,5 @@
 import { useLocation, Link } from 'react-router-dom'
 import { Bell, Search, Menu, X, Settings } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
 import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { NotificationPanel } from '@/components/ui/NotificationPanel'
@@ -28,7 +27,6 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick, sidebarOpen }: TopbarProps) {
   const location = useLocation()
-  const { provider } = useAuthStore()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const bellRef = useRef<HTMLButtonElement>(null)
@@ -48,9 +46,6 @@ export function Topbar({ onMenuClick, sidebarOpen }: TopbarProps) {
   const pageLabel = Object.entries(ROUTE_LABELS).find(([path]) =>
     location.pathname.startsWith(path)
   )?.[1] ?? 'Dashboard'
-
-  const initials = (provider?.fullName ?? '')
-    .split(' ').filter(Boolean).map((n) => n[0]).slice(0, 2).join('').toUpperCase() || 'DR'
 
   const { data: notifications = [] } = useQuery<Notification[]>({
     queryKey: ['notifications'],

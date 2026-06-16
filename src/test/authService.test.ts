@@ -18,7 +18,7 @@ vi.mock('@/services/api', () => ({
 }))
 
 import { preAuthApi } from '@/services/api'
-const mockPre = preAuthApi as { post: ReturnType<typeof vi.fn> }
+const mockPre = preAuthApi as unknown as { post: ReturnType<typeof vi.fn> }
 
 describe('authService', () => {
   beforeEach(() => vi.clearAllMocks())

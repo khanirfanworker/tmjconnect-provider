@@ -4,7 +4,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ArrowLeft, Calendar, Activity,
   CheckCircle2, Clock, Play, Send, Dumbbell, Flag,
-  Download, ArrowRight, MessageSquare,
+  Download, MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/Badge'

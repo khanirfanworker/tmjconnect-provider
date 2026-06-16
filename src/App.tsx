@@ -27,9 +27,6 @@ const InvitePage      = lazy(() => import('@/pages/invite/InvitePage'))
 const HelpPage        = lazy(() => import('@/pages/help/HelpPage'))
 
 // Settings
-const AnalyticsPage       = lazy(() => import('@/pages/analytics/AnalyticsPage'))
-
-// Settings
 const ProfilePage         = lazy(() => import('@/pages/profile/ProfilePage'))
 const SecurityPage        = lazy(() => import('@/pages/profile/SecurityPage'))
 const NotificationsPage   = lazy(() => import('@/pages/profile/NotificationsPage'))

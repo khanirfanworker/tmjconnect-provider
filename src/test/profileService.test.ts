@@ -11,7 +11,7 @@ vi.mock('@/services/api', () => ({
 }))
 
 import api from '@/services/api'
-const mockApi = api as { get: ReturnType<typeof vi.fn>; post: ReturnType<typeof vi.fn>; patch: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> }
+const mockApi = api as unknown as { get: ReturnType<typeof vi.fn>; post: ReturnType<typeof vi.fn>; patch: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> }
 
 describe('profileService', () => {
   beforeEach(() => vi.clearAllMocks())

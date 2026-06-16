@@ -82,7 +82,7 @@ export const exercisesService = {
   },
 
   async createExercise(payload: {
-    title: string; description?: string; duration_seconds: number
+    title: string; description?: string; instructions?: string; duration_seconds: number
     category: string; video_url?: string; thumbnail_url?: string
   }): Promise<{ id: string }> {
     const { data } = await api.post('/providers/exercises', payload)

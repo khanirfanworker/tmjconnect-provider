@@ -33,9 +33,6 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
-let isRefreshing = false
-let refreshQueue: Array<(token: string) => void> = []
-
 // Shared refresh promise so concurrent 401s all wait on the same refresh call
 let refreshPromise: Promise<string> | null = null
 
@@ -50,7 +47,6 @@ api.interceptors.response.use(
 
     if (!refreshPromise) {
       refreshPromise = (async () => {
-        isRefreshing = true
         try {
           const rt = useAuthStore.getState().refreshToken
           if (!rt) throw new Error('No refresh token')
@@ -59,16 +55,12 @@ api.interceptors.response.use(
           const at = d.access_token
           const nrt = d.refresh_token
           useAuthStore.getState().setTokens(at, nrt)
-          refreshQueue.forEach((cb) => cb(at))
-          refreshQueue = []
           return at
         } catch (e) {
-          refreshQueue = []
           useAuthStore.getState().logout()
           window.location.href = '/login'
           throw e
         } finally {
-          isRefreshing = false
           refreshPromise = null
         }
       })()

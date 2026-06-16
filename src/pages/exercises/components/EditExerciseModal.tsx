@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { exercisesService, ExerciseCard } from '@/services/exercisesService'
+import type { ExerciseCategoryKey } from '@/services/exercisesService'
 
 interface Props {
   exercise: ExerciseCard
@@ -87,7 +88,7 @@ export function EditExerciseModal({ exercise, onClose }: Props) {
                 <label className="block text-sm font-medium text-slate-700">Category</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => setCategory(e.target.value as ExerciseCategoryKey)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3
                              text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-transparent"
                 >

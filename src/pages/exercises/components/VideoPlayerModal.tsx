@@ -85,8 +85,7 @@ export function VideoPlayerModal({ exercise, onClose }: Props) {
     setCurrent(0)
   }
 
-  const pct      = duration > 0 ? (currentTime / duration) * 100 : 0
-  const timeLeft = Math.max(0, duration - currentTime)
+  const pct = duration > 0 ? (currentTime / duration) * 100 : 0
 
   function fmt(s: number) {
     const m = Math.floor(s / 60)
