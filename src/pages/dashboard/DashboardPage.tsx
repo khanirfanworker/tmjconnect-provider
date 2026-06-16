@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 import { dashboardService } from '@/services/dashboardService'
 import { StatCards } from './components/StatCards'
-import { PatientFilters, FilterTab, SortOption } from './components/PatientFilters'
+import { PatientFilters, FilterTab, SortOption, TabCounts } from './components/PatientFilters'
 import { PatientTable } from './components/PatientTable'
 import { PatientRow } from '@/services/dashboardService'
 import type { DashboardStats } from '@/services/dashboardService'
+import { inviteService } from '@/services/inviteService'
 
 /** Time-aware greeting */
 function greeting() {
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<DashboardStats>({ 
     queryKey: ['dashboard-stats'],
     queryFn: (): Promise<DashboardStats> => dashboardService.getStats(),
+    staleTime: 1000 * 60 * 2,
   })
 
   // Fetch patients
@@ -99,6 +101,22 @@ export default function DashboardPage() {
   }, [patients, activeTab, sortBy])
 
   const urgentCount = patients.filter((p) => p.status === 'urgent').length
+
+  // Pending invites from linking metrics
+  const { data: linkingMetrics } = useQuery({
+    queryKey: ['linking-metrics'],
+    queryFn:  inviteService.getMetrics,
+    staleTime: 1000 * 60 * 2,
+  })
+
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+  const tabCounts: TabCounts = {
+    all:             patients.length,
+    needs_attention: patients.filter(p => p.status === 'urgent' || p.hasOpenUrgentReport).length,
+    recent:          patients.filter(p => p.lastAppLogin && Date.now() - new Date(p.lastAppLogin).getTime() < WEEK_MS).length,
+    no_activity:     patients.filter(p => !p.lastAppLogin || Date.now() - new Date(p.lastAppLogin).getTime() >= WEEK_MS).length,
+    pending_invites: linkingMetrics?.pending_codes ?? 0,
+  }
 
   // ── Empty state: no patients yet ────────────────────────────────────────
   if (!patientsLoading && !patientsError && patients.length === 0) {
@@ -193,6 +211,7 @@ export default function DashboardPage() {
       <PatientFilters
         activeTab={activeTab}
         sortBy={sortBy}
+        counts={tabCounts}
         onTabChange={setActiveTab}
         onSortChange={setSortBy}
       />

@@ -127,8 +127,8 @@ function mapPatient(p: any): PatientRow {
     email:              p.email ?? '',
     avatarUrl:          p.avatar_url,
     linkedSince:        p.linked_at ?? p.linked_since ?? '',
-    lastAppLogin:       p.last_active ?? p.last_app_login ?? null,
-    latestPainLevel:    p.avg_pain_7d ?? p.latest_pain_level ?? p.pain_level ?? null,
+    lastAppLogin:       p.last_active_at ?? p.last_active ?? p.last_app_login ?? p.last_login ?? p.lastLogin ?? p.lastActiveAt ?? null,
+    latestPainLevel:    p.avg_pain_7d ?? p.avgPain7d ?? p.latest_pain_level ?? p.latestPainLevel ?? p.pain_level ?? null,
     status,
     exerciseAdherence:  p.exercise_adherence_pct ?? p.exercise_adherence ?? 0,
     hasOpenUrgentReport: p.has_urgent_report ?? status === 'urgent',
@@ -150,17 +150,16 @@ export const dashboardService = {
   async getStats(): Promise<DashboardStats> {
     const { data } = await api.get('/providers/dashboard/summary')
     const d = data?.data ?? data
-    const kpis = d?.kpis ?? d
 
     return {
-      totalPatients:       kpis?.total_patients ?? kpis?.totalPatients ?? 0,
-      newThisMonth:        kpis?.total_patients_delta ?? kpis?.new_this_month ?? 0,
-      reportsAwaiting:     kpis?.unread_reports ?? kpis?.reports_awaiting ?? 0,
-      avgResponseTime:     kpis?.avg_response_time ?? '—',
-      urgentCount:         kpis?.urgent_patients ?? kpis?.urgent_count ?? 0,
-      urgentSinceYesterday:kpis?.urgent_patients_delta ?? 0,
-      exerciseAdherence:   kpis?.exercise_adherence ?? kpis?.exercise_adherence_pct ?? 0,
-      adherenceChange:     kpis?.adherence_change ?? 0,
+      totalPatients:        d?.activePatients         ?? d?.total_patients    ?? 0,
+      newThisMonth:         d?.deltas?.activePatients?.value ?? d?.new_this_month ?? 0,
+      reportsAwaiting:      d?.unreadReports          ?? d?.unread_reports    ?? 0,
+      avgResponseTime:      d?.avgResponseTime        ?? d?.avg_response_time ?? '—',
+      urgentCount:          d?.urgentReports          ?? d?.urgent_patients   ?? 0,
+      urgentSinceYesterday: d?.deltas?.urgentReports?.value ?? 0,
+      exerciseAdherence:    d?.exerciseAdherence      ?? d?.exercise_adherence ?? 0,
+      adherenceChange:      d?.deltas?.exerciseAdherence?.value ?? 0,
     }
   },
 

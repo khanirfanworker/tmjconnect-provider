@@ -22,12 +22,14 @@ interface AuthState {
   lastActivityAt: number
   isMfaPending: boolean
   mfaToken: string | null         // short-lived token between login → MFA verify
+  authInitialized: boolean        // true once startup token refresh attempt is done
 
   setTokens: (access: string, refresh: string) => void
   setProvider: (provider: Provider) => void
   setMfaVerified: (verified: boolean) => void
   setMfaPending: (pending: boolean) => void
   setMfaToken: (token: string | null) => void
+  setAuthInitialized: (initialized: boolean) => void
   updateActivity: () => void
   logout: () => void
 }
@@ -43,6 +45,7 @@ export const useAuthStore = create<AuthState>()(
       lastActivityAt: 0,
       isMfaPending: false,
       mfaToken: null,
+      authInitialized: false,
 
       setTokens: (access, refresh) => {
         set({
@@ -60,6 +63,8 @@ export const useAuthStore = create<AuthState>()(
 
       setMfaToken: (token) => set({ mfaToken: token }),
 
+      setAuthInitialized: (initialized) => set({ authInitialized: initialized }),
+
       updateActivity: () => set({ lastActivityAt: Date.now() }),
 
       logout: () => {
@@ -72,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
           lastActivityAt: 0,
           isMfaPending: false,
           mfaToken: null,
+          authInitialized: true,
         })
       },
     }),

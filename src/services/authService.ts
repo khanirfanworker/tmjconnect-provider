@@ -63,6 +63,7 @@ export interface VerifyEmailResponse {
 export interface MfaSetupResponse {
   secret: string
   qr_uri: string
+  setup_token?: string  // may be rotated by the server — use this for verify if present
 }
 
 export interface MfaVerifySetupResponse {
@@ -135,15 +136,28 @@ export const authService = {
     return unwrap<MfaVerifySetupResponse>(data)
   },
 
-  /** POST /auth/mfa/setup — Bearer: access_token (reconfigure from settings) */
-  async reconfigureMfaSetup(): Promise<MfaSetupResponse> {
-    const { data } = await api.post('/auth/mfa/setup', {})
+  /** POST /auth/mfa/reconfigure/init — Bearer: access_token, body: { password, code } → { setup_token } */
+  async reconfigureInit(password: string, code: string): Promise<string> {
+    const { data } = await api.post('/auth/mfa/reconfigure/init', { password, code })
+    const d = data?.data ?? data
+    const token = d.setup_token ?? d.setupToken ?? d.token ?? d.mfa_token
+    if (!token) throw new Error('No setup token returned from server')
+    return token
+  },
+
+  /** POST /auth/mfa/setup — Bearer: setup_token (reconfigure, same as registration) */
+  async reconfigureMfaSetup(setupToken: string): Promise<MfaSetupResponse> {
+    const { data } = await preAuthApi.post('/auth/mfa/setup', {}, {
+      headers: { Authorization: `Bearer ${setupToken}` },
+    })
     return unwrap<MfaSetupResponse>(data)
   },
 
-  /** POST /auth/mfa/verify-setup — Bearer: access_token, body: { code } (reconfigure from settings) */
-  async reconfigureMfaVerify(code: string): Promise<MfaVerifySetupResponse> {
-    const { data } = await api.post('/auth/mfa/verify-setup', { code })
+  /** POST /auth/mfa/verify-setup — Bearer: setup_token, body: { code } (reconfigure) */
+  async reconfigureMfaVerify(setupToken: string, code: string): Promise<MfaVerifySetupResponse> {
+    const { data } = await preAuthApi.post('/auth/mfa/verify-setup', { code }, {
+      headers: { Authorization: `Bearer ${setupToken}` },
+    })
     return unwrap<MfaVerifySetupResponse>(data)
   },
 

@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  ArrowLeft, Mail, Calendar, Activity,
-  AlertCircle, CheckCircle2, Clock, Play, Send, Dumbbell, Flag,
-  Download, ArrowRight,
+  ArrowLeft, Calendar, Activity,
+  CheckCircle2, Clock, Play, Send, Dumbbell, Flag,
+  Download, ArrowRight, MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -30,89 +30,121 @@ const URGENCY_STYLE: Record<string, { bg: string; color: string; label: string }
   routine:    { bg: '#f0fdf4', color: '#16a34a', label: 'Routine' },
 }
 
-// Pain level → heatmap color
-function heatColor(pain: number | null): string {
-  if (pain === null || pain === 0) return '#f1f5f9'
-  if (pain <= 2) return '#bbf7d0'
-  if (pain <= 4) return '#86efac'
-  if (pain <= 6) return '#f59e0b'
-  if (pain <= 8) return '#ef4444'
-  return '#991b1b'
+// ─── Pain over time bar chart — one bar per logged symptom, oldest → newest ──
+function PainOverTimeChart({ symptoms }: { symptoms: { loggedAt: string; painLevel: number }[] }) {
+  const ordered = [...symptoms].sort(
+    (a, b) => new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime()
+  )
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="flex items-start justify-between mb-6">
+        <h3 className="text-xl font-bold text-slate-900">
+          Pain over time
+        </h3>
+        <span className="text-xs uppercase tracking-wider text-slate-400 pt-1">
+          {ordered.length} log{ordered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="flex items-end gap-1.5 h-44">
+        {ordered.map((s, i) => {
+          const heightPct = Math.max((s.painLevel / 10) * 100, 4)
+          const isHigh = s.painLevel >= 7
+          return (
+            <div
+              key={i}
+              className="w-8 max-w-12 flex-shrink-0 rounded-t-sm relative group cursor-default"
+              style={{ height: `${heightPct}%`, backgroundColor: isHigh ? '#b91c1c' : '#c49526' }}
+            >
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block
+                              bg-slate-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
+                {formatDate(s.loggedAt)} · Pain {s.painLevel}/10
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
-// ─── 28-Day Heatmap ──────────────────────────────────────────────────────────
-function SymptomHeatmap({ symptoms }: { symptoms: { loggedAt: string; painLevel: number }[] }) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+// ─── Recent activity timeline — merges real symptom logs + reports ──────────
+interface ActivityItem {
+  date: string
+  dotColor: string
+  title: string
+  description: string
+}
 
-  // Build map: dateStr → max pain
-  const dayMap = new Map<string, number>()
-  for (const s of symptoms) {
-    const d = new Date(s.loggedAt)
-    d.setHours(0, 0, 0, 0)
-    const key = d.toISOString().slice(0, 10)
-    dayMap.set(key, Math.max(dayMap.get(key) ?? 0, s.painLevel))
+function buildRecentActivity(
+  symptoms: { id: string; loggedAt: string; painLevel: number; notes: string | null }[],
+  reports: { id: string; urgency: string; submittedAt: string; painLevel: number; preview: string }[],
+): ActivityItem[] {
+  const URGENCY_DOT: Record<string, string> = {
+    urgent: '#dc2626', concerning: '#d97706', routine: '#16a34a',
   }
 
-  // Build 28 days (oldest → newest)
-  const days: { date: Date; pain: number | null; label: string }[] = []
-  for (let i = 27; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    days.push({ date: d, pain: dayMap.get(key) ?? null, label })
-  }
+  const reportItems: ActivityItem[] = reports.map((r) => ({
+    date: r.submittedAt,
+    dotColor: URGENCY_DOT[r.urgency] ?? '#16a34a',
+    title: `Submitted ${r.urgency} report — pain ${r.painLevel}/10`,
+    description: r.preview || '—',
+  }))
 
-  // Week labels at position 0, 7, 14, 21
-  const weekLabels = [0, 7, 14, 21].map(i => days[i].label)
+  const symptomItems: ActivityItem[] = symptoms.map((s) => ({
+    date: s.loggedAt,
+    dotColor: '#0e2040',
+    title: 'Logged symptoms',
+    description: `Pain: ${s.painLevel}/10${s.notes ? ` · Notes: "${s.notes}"` : ''}`,
+  }))
+
+  return [...reportItems, ...symptomItems]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 4)
+}
+
+function RecentActivity({ items, onViewAll }: { items: ActivityItem[]; onViewAll: () => void }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-slate-700 mb-2">Recent activity</h3>
+        <p className="text-sm text-slate-400">No recent activity yet.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900">28-day symptom heatmap</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Each cell shows the highest pain score that day. White = no log.</p>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-          <span>Less</span>
-          {['#f1f5f9','#bbf7d0','#86efac','#f59e0b','#ef4444','#991b1b'].map(c => (
-            <div key={c} className="h-3.5 w-3.5 rounded-sm" style={{ backgroundColor: c }} />
-          ))}
-          <span>More</span>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-slate-700">Recent activity</h3>
+        <button onClick={onViewAll} className="text-xs font-semibold hover:underline" style={{ color: '#0e2040' }}>
+          View all →
+        </button>
       </div>
 
-      {/* Grid: 4 rows × 7 cols */}
-      <div className="space-y-1.5">
-        {[0,1,2,3].map(week => (
-          <div key={week} className="flex items-center gap-1.5">
-            {days.slice(week * 7, week * 7 + 7).map((day, i) => (
-              <div
-                key={i}
-                className="h-8 flex-1 rounded-md relative group"
-                style={{ backgroundColor: heatColor(day.pain) }}
-                title={`${day.label}: ${day.pain !== null ? `Pain ${day.pain}/10` : 'No log'}`}
-              >
-                {/* Tooltip on hover */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block
-                                bg-slate-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
-                  {day.label}{day.pain !== null ? ` · ${day.pain}/10` : ' · No log'}
-                </div>
+      <div className="space-y-5">
+        {items.map((item, i) => {
+          const d = new Date(item.date)
+          const isToday = new Date().toDateString() === d.toDateString()
+          const isYesterday = new Date(Date.now() - 86400000).toDateString() === d.toDateString()
+          const dayLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : formatDate(item.date)
+          const timeLabel = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
+          return (
+            <div key={i} className="flex gap-3">
+              <div className="flex flex-col items-center flex-shrink-0">
+                <div className="h-3 w-3 rounded-full border-2 bg-white" style={{ borderColor: item.dotColor }} />
+                {i < items.length - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
               </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Week labels */}
-      <div className="flex mt-2">
-        {weekLabels.map((label, i) => (
-          <div key={i} className="flex-1 text-xs text-slate-400" style={{ paddingLeft: i === 0 ? 0 : undefined }}>
-            {label}
-          </div>
-        ))}
-        <div className="text-xs text-slate-400 flex-1 text-right">TODAY</div>
+              <div className="flex-1 min-w-0 pb-1">
+                <p className="text-xs text-slate-400 mb-1">{dayLabel} · {timeLabel}</p>
+                <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">{item.description}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -208,7 +240,7 @@ export default function PatientDetailPage() {
   const { data: symptoms = [], isLoading: symptomsLoading } = useQuery({
     queryKey: ['patient-symptoms', id],
     queryFn: () => dashboardService.getPatientSymptoms(id!, 50),
-    enabled: !!id && activeTab === 'symptoms',
+    enabled: !!id && (activeTab === 'symptoms' || activeTab === 'overview'),
   })
 
   const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
@@ -220,7 +252,7 @@ export default function PatientDetailPage() {
   const { data: reports = [], isLoading: reportsLoading } = useQuery({
     queryKey: ['patient-reports', id],
     queryFn: () => dashboardService.getPatientReports(id!),
-    enabled: !!id && activeTab === 'reports',
+    enabled: !!id && (activeTab === 'reports' || activeTab === 'overview'),
   })
 
   const { data: reportRequests = [] } = useQuery({
@@ -318,6 +350,40 @@ export default function PatientDetailPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* ── Stat row ────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-2xl border border-slate-200 bg-slate-200 overflow-hidden mt-px">
+        {[
+          {
+            label: 'Exercise adherence', Icon: Dumbbell,
+            value: `${adherencePct}%`, sub: 'Past 7 days',
+          },
+          {
+            label: 'Avg pain · 7D', Icon: Activity,
+            value: patient.latestPainLevel !== null ? `${patient.latestPainLevel}` : '—',
+            sub: 'From symptom logs',
+          },
+          {
+            label: 'Linked since', Icon: Calendar,
+            value: patient.linkedSince ? formatDate(patient.linkedSince) : '—',
+            sub: 'Time on platform',
+          },
+          {
+            label: 'Last activity', Icon: MessageSquare,
+            value: patient.lastAppLogin ? timeAgo(patient.lastAppLogin) : '—',
+            sub: 'App activity',
+          },
+        ].map(({ label, Icon, value, sub }) => (
+          <div key={label} className="bg-white px-6 py-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs uppercase tracking-wider text-slate-400">{label}</p>
+              <Icon size={14} className="text-slate-300" />
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{value}</p>
+            <p className="text-xs uppercase tracking-wider text-slate-400 mt-1">{sub}</p>
+          </div>
+        ))}
       </div>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
@@ -420,6 +486,11 @@ export default function PatientDetailPage() {
               </div>
             </div>
           </div>
+
+          <RecentActivity
+            items={buildRecentActivity(symptoms, reports)}
+            onViewAll={() => setActiveTab('symptoms')}
+          />
         </div>
       )}
 
@@ -446,83 +517,76 @@ export default function PatientDetailPage() {
             </div>
           ) : (
             <>
-              {/* Heatmap */}
-              <SymptomHeatmap symptoms={symptoms} />
+              {/* Pain over time bar chart */}
+              <PainOverTimeChart symptoms={symptoms} />
 
               {/* Symptom log list */}
-              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">Symptom logs</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {symptoms.length} entries · showing most recent {Math.min(symptoms.length, 10)}
-                      </p>
-                    </div>
-                    <button className="flex items-center gap-1.5 text-xs font-semibold hover:underline"
-                            style={{ color: '#0e2040' }}>
-                      <Download size={12} /> Export CSV
-                    </button>
-                  </div>
-
-                  <div className="divide-y divide-slate-100">
-                    {symptoms.slice(0, 10).map((s) => {
-                      const logDate = new Date(s.loggedAt)
-                      const isToday = new Date().toDateString() === logDate.toDateString()
-                      const isYesterday = new Date(Date.now() - 86400000).toDateString() === logDate.toDateString()
-                      const dateLabel = isToday ? 'TODAY' : isYesterday ? 'YESTERDAY' : formatDate(s.loggedAt).toUpperCase()
-                      const timeLabel = logDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                      const tags = [
-                        ...s.bodyAreas.map(a => ({ label: a, type: 'area' })),
-                        ...s.triggers.map(t => ({ label: t, type: 'trigger' })),
-                        ...(s.painTypes ?? []).map(p => ({ label: p, type: 'type' })),
-                      ]
-
-                      return (
-                        <div key={s.id} className="flex gap-4 px-5 py-4">
-                          {/* Date/time */}
-                          <div className="w-20 flex-shrink-0">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{dateLabel}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{timeLabel}</p>
-                          </div>
-
-                          {/* Pain score */}
-                          <div className="w-16 flex-shrink-0 text-center">
-                            <span
-                              className="text-3xl font-black leading-none"
-                              style={{ color: s.painLevel >= 7 ? '#dc2626' : s.painLevel >= 4 ? '#d97706' : '#16a34a' }}
-                            >
-                              {s.painLevel}
-                            </span>
-                            <p className="text-xs text-slate-400 mt-0.5">/10 PAIN</p>
-                          </div>
-
-                          {/* Details */}
-                          <div className="flex-1 min-w-0">
-                            {tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-2">
-                                {tags.map((tag, i) => (
-                                  <span key={i}
-                                    className="rounded-full border border-slate-200 bg-slate-50
-                                               px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                                    {tag.label}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {s.notes && (
-                              <p className="text-sm text-slate-600 leading-relaxed italic">
-                                "{s.notes}"
-                              </p>
-                            )}
-                            {s.durationMinutes && (
-                              <p className="text-xs text-slate-400 mt-1">Duration: {s.durationMinutes} min</p>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">
+                    {symptoms.length} entries
+                  </p>
+                  <button className="flex items-center gap-1.5 text-xs font-semibold hover:underline"
+                          style={{ color: '#0e2040' }}>
+                    <Download size={12} /> Export CSV
+                  </button>
                 </div>
+
+                {symptoms.map((s) => {
+                  const logDate = new Date(s.loggedAt)
+                  const dateLabel = formatDate(s.loggedAt).toUpperCase()
+                  const timeLabel = logDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+                  const painTypeTags = (s.painTypes ?? []).map(p => p.toUpperCase())
+                  const bodyAreaTags = s.bodyAreas.map(a => a.toUpperCase())
+
+                  return (
+                    <div key={s.id} className="border-t border-slate-200 pt-4 flex gap-4">
+                      {/* Date/time */}
+                      <div className="w-16 flex-shrink-0 text-xs uppercase tracking-wider text-slate-400 leading-relaxed">
+                        {dateLabel}<br />{timeLabel}
+                      </div>
+
+                      {/* Pain score box */}
+                      <div className="w-11 h-11 flex-shrink-0 rounded-lg flex items-center justify-center"
+                           style={{ backgroundColor: '#faf3e6' }}>
+                        <span className="text-xl font-bold" style={{ color: '#c49526' }}>{s.painLevel}</span>
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {painTypeTags.map((tag, i) => (
+                            <span key={`pt-${i}`}
+                              className="rounded border border-slate-200 px-2 py-0.5 text-xs uppercase tracking-wider text-slate-600">
+                              {tag}
+                            </span>
+                          ))}
+                          {bodyAreaTags.map((tag, i) => (
+                            <span key={`ba-${i}`}
+                              className="rounded px-2 py-0.5 text-xs uppercase tracking-wider text-white"
+                              style={{ backgroundColor: '#1e293b' }}>
+                              {tag}
+                            </span>
+                          ))}
+                          {s.durationMinutes !== null && (
+                            <span className="flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500">
+                              <Clock size={10} /> {s.durationMinutes}m
+                            </span>
+                          )}
+                        </div>
+                        {s.triggers.length > 0 && (
+                          <p className="text-xs uppercase tracking-wider text-slate-400">
+                            Triggers · {s.triggers.join(', ')}
+                          </p>
+                        )}
+                        {s.notes && (
+                          <p className="text-sm text-slate-700">{s.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </>
           )}
         </div>
@@ -596,8 +660,7 @@ export default function PatientDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm">Adjust protocol</Button>
-              <Button size="sm" onClick={() => setShowAssign(true)}>
+<Button size="sm" onClick={() => setShowAssign(true)}>
                 + Assign new
               </Button>
             </div>

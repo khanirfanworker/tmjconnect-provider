@@ -1,32 +1,36 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Monitor, Smartphone, ShieldCheck,
-  Key, RefreshCw, MessageSquare, LogOut, Copy,
+  Key, RefreshCw, MessageSquare, LogOut, Copy, Check, ArrowRight, X, KeyRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
 import { Input } from '@/components/ui/Input'
 import { profileService } from '@/services/profileService'
-// profileService used for getSessions + revokeSession
 import { useAuthStore } from '@/store/authStore'
-import { authService } from '@/services/authService'
+import { authService, getErrorMessage } from '@/services/authService'
 import { formatDateTime } from '@/utils/formatters'
+import { cn } from '@/lib/cn'
+
+type MfaStep = 'confirm' | 'qr' | 'verify' | 'backup'
 
 export function SecurityTab() {
   const { logout } = useAuthStore()
   const navigate   = useNavigate()
 
-  const [showChangePw, setShowChangePw]       = useState(false)
-  const [currentPw, setCurrentPw]             = useState('')
-  const [newPw, setNewPw]                     = useState('')
-  const [confirmPw, setConfirmPw]             = useState('')
-  const [pwError, setPwError]                 = useState<string | null>(null)
-  const [pwSaved, setPwSaved]                 = useState(false)
-  const [savingPw, setSavingPw]               = useState(false)
-  const [localSessions, setLocalSessions]     = useState<import('@/services/profileService').SecuritySession[] | null>(null)
+  // ── Password ─────────────────────────────────────────────────────────────
+  const [showChangePw, setShowChangePw]   = useState(false)
+  const [currentPw, setCurrentPw]         = useState('')
+  const [newPw, setNewPw]                 = useState('')
+  const [confirmPw, setConfirmPw]         = useState('')
+  const [pwError, setPwError]             = useState<string | null>(null)
+  const [pwSaved, setPwSaved]             = useState(false)
+  const [savingPw, setSavingPw]           = useState(false)
 
+  // ── Sessions ──────────────────────────────────────────────────────────────
+  const [localSessions, setLocalSessions] = useState<import('@/services/profileService').SecuritySession[] | null>(null)
 
   const { data: fetchedSessions = [] } = useQuery({
     queryKey: ['sessions'],
@@ -34,6 +38,83 @@ export function SecurityTab() {
   })
   const activeSessions = localSessions ?? fetchedSessions
 
+  // ── MFA Reconfigure ───────────────────────────────────────────────────────
+  const [mfaStep, setMfaStep]               = useState<MfaStep | null>(null)
+  const [mfaSetupToken, setMfaSetupToken]   = useState('')
+  const setupTokenRef                        = useRef('')  // ref copy — immune to stale closures
+  const [mfaQrUri, setMfaQrUri]             = useState('')
+  const [mfaSecret, setMfaSecret]           = useState('')
+  const [mfaOtp, setMfaOtp]                 = useState('')
+  const [mfaPassword, setMfaPassword]       = useState('')
+  const [mfaCurrentCode, setMfaCurrentCode] = useState('')
+  const [mfaBackupCodes, setMfaBackupCodes] = useState<string[]>([])
+  const [mfaLoading, setMfaLoading]         = useState(false)
+  const [mfaError, setMfaError]             = useState<string | null>(null)
+  const [secretCopied, setSecretCopied]     = useState(false)
+  const [codesCopied, setCodesCopied]       = useState(false)
+
+  function startReconfigure() {
+    setMfaError(null)
+    setMfaPassword('')
+    setMfaCurrentCode('')
+    setMfaStep('confirm')
+  }
+
+  async function handleConfirmIdentity() {
+    if (!mfaPassword || mfaCurrentCode.length !== 6) return
+    setMfaLoading(true)
+    setMfaError(null)
+    try {
+      const initToken = await authService.reconfigureInit(mfaPassword, mfaCurrentCode)
+      const res = await authService.reconfigureMfaSetup(initToken)
+      // Server may rotate the setup_token after /auth/mfa/setup — use the new one if present
+      const verifyToken = res.setup_token ?? initToken
+      setMfaSetupToken(verifyToken)
+      setupTokenRef.current = verifyToken
+      setMfaQrUri(res.qr_uri)
+      setMfaSecret(res.secret)
+      setMfaStep('qr')
+    } catch (err) {
+      setMfaError(getErrorMessage(err, 'Incorrect password or code. Please try again.'))
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  async function handleMfaVerify() {
+    if (mfaOtp.length !== 6) return
+    setMfaLoading(true)
+    setMfaError(null)
+    try {
+      // Step 3: verify with the same setup_token
+      const token = setupTokenRef.current || mfaSetupToken
+      const res = await authService.reconfigureMfaVerify(token, mfaOtp)
+      setMfaBackupCodes(res.backup_codes)
+      setMfaStep('backup')
+    } catch (err) {
+      setMfaError(getErrorMessage(err, 'Invalid code. Check your authenticator app and try again.'))
+      setMfaOtp('')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  function closeMfa() {
+    setMfaStep(null)
+    setMfaSetupToken('')
+    setupTokenRef.current = ''
+    setMfaOtp('')
+    setMfaPassword('')
+    setMfaCurrentCode('')
+    setMfaError(null)
+    setMfaQrUri('')
+    setMfaSecret('')
+    setMfaBackupCodes([])
+    setSecretCopied(false)
+    setCodesCopied(false)
+  }
+
+  // ── Password handlers ─────────────────────────────────────────────────────
   async function handleChangePw() {
     if (!currentPw || !newPw || newPw !== confirmPw) {
       setPwError("Passwords don't match or fields are empty.")
@@ -63,8 +144,6 @@ export function SecurityTab() {
     logout(); navigate('/login')
   }
 
-
-  // Security posture: strong if >1 session or MFA active
   const postureStrong = true
 
   return (
@@ -144,29 +223,260 @@ export function SecurityTab() {
         </div>
 
         {/* Authenticator app row */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white flex-shrink-0">
-              <Key size={16} className="text-slate-500" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-slate-900">Authenticator app</p>
-                <span className="rounded-full px-2 py-0.5 text-xs font-bold"
-                      style={{ backgroundColor: '#0e2040', color: 'white' }}>
-                  PRIMARY
-                </span>
+        <div className="border-b border-slate-100">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white flex-shrink-0">
+                <Key size={16} className="text-slate-500" />
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Google Authenticator · set up Jan 8, 2025
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-900">Authenticator app</p>
+                  <span className="rounded-full px-2 py-0.5 text-xs font-bold"
+                        style={{ backgroundColor: '#0e2040', color: 'white' }}>
+                    PRIMARY
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Google Authenticator · set up Jan 8, 2025
+                </p>
+              </div>
             </div>
+            <button
+              onClick={startReconfigure}
+              disabled={mfaLoading}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold
+                         text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {mfaLoading && !mfaStep
+                ? <><div className="h-3 w-3 animate-spin rounded-full border border-slate-400 border-t-transparent" /> Starting…</>
+                : <><RefreshCw size={11} /> Reconfigure</>
+              }
+            </button>
           </div>
-          <button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold
-                             text-slate-700 hover:bg-slate-50 transition-colors">
-            Reconfigure
-          </button>
+          {mfaError && !mfaStep && (
+            <div className="px-6 pb-4">
+              <Alert message={mfaError} onDismiss={() => setMfaError(null)} />
+            </div>
+          )}
         </div>
+
+        {/* ── MFA reconfigure inline flow ─────────────────────────────── */}
+        {mfaStep && (
+          <div className="border-t border-slate-100 px-6 py-5" style={{ backgroundColor: '#fafafa' }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} style={{ color: '#c49526' }} />
+                <p className="text-sm font-semibold text-slate-900">
+                  {mfaStep === 'confirm' && 'Step 1 of 3 — Confirm identity'}
+                  {mfaStep === 'qr'      && 'Step 2 of 3 — Scan QR code'}
+                  {mfaStep === 'verify'  && 'Step 3 of 3 — Verify new code'}
+                  {mfaStep === 'backup'  && 'Complete — Save backup codes'}
+                </p>
+              </div>
+              {mfaStep !== 'backup' && (
+                <button onClick={closeMfa} className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50">
+                  <X size={13} className="text-slate-500" />
+                </button>
+              )}
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-0.5 w-full rounded-full bg-slate-200 overflow-hidden mb-5">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: mfaStep === 'confirm' ? '25%' : mfaStep === 'qr' ? '50%' : mfaStep === 'verify' ? '75%' : '100%',
+                  backgroundColor: '#c49526',
+                }}
+              />
+            </div>
+
+            {mfaError && (
+              <div className="mb-4">
+                <Alert message={mfaError} onDismiss={() => setMfaError(null)} />
+              </div>
+            )}
+
+            {/* Step: confirm identity */}
+            {mfaStep === 'confirm' && (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  To protect your account, confirm your identity before reconfiguring MFA.
+                </p>
+                <Input
+                  label="Current password"
+                  type="password"
+                  value={mfaPassword}
+                  onChange={(e) => { setMfaPassword(e.target.value); setMfaError(null) }}
+                  autoFocus
+                />
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Current authenticator code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={mfaCurrentCode}
+                    onChange={(e) => { setMfaCurrentCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setMfaError(null) }}
+                    placeholder="000000"
+                    className="w-full rounded-xl border-2 px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] focus:outline-none transition-all bg-white text-slate-900"
+                    style={{ borderColor: mfaCurrentCode.length === 6 ? '#c49526' : '#e2e8f0' }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleConfirmIdentity()}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={closeMfa} className="flex-1">Cancel</Button>
+                  <Button
+                    size="sm"
+                    loading={mfaLoading}
+                    disabled={!mfaPassword || mfaCurrentCode.length !== 6}
+                    onClick={handleConfirmIdentity}
+                    className="flex-1"
+                  >
+                    Continue <ArrowRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step: QR code */}
+            {mfaStep === 'qr' && (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Open Google Authenticator, Authy, or 1Password and scan this QR code to link your new device.
+                  Your previous authenticator will stop working once you verify below.
+                </p>
+
+                {/* QR code */}
+                <div className="flex justify-center">
+                  <div className="rounded-xl border-2 border-slate-200 p-3 bg-white">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(mfaQrUri)}`}
+                      alt="MFA QR Code"
+                      width={160}
+                      height={160}
+                      className="rounded"
+                    />
+                  </div>
+                </div>
+
+                {/* Manual secret */}
+                <div>
+                  <p className="text-xs text-slate-500 mb-1.5">Or enter this key manually:</p>
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                    <code className="flex-1 text-xs font-mono text-slate-700 tracking-wider break-all">
+                      {mfaSecret}
+                    </code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(mfaSecret); setSecretCopied(true); setTimeout(() => setSecretCopied(false), 2000) }}
+                      className="flex-shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all"
+                      style={{ backgroundColor: secretCopied ? '#f0fdf4' : '#0e2040', color: secretCopied ? '#16a34a' : 'white' }}
+                    >
+                      {secretCopied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+
+                <Button fullWidth onClick={() => setMfaStep('verify')}>
+                  I've scanned the QR code <ArrowRight size={15} />
+                </Button>
+              </div>
+            )}
+
+            {/* Step: verify */}
+            {mfaStep === 'verify' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <KeyRound size={15} style={{ color: '#c49526' }} />
+                  <p className="text-sm font-medium text-slate-800">Enter the 6-digit code from your authenticator</p>
+                </div>
+                <p className="text-xs text-slate-500">Codes refresh every 30 seconds.</p>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={mfaOtp}
+                  onChange={(e) => { setMfaOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setMfaError(null) }}
+                  placeholder="000000"
+                  className={cn(
+                    'w-full rounded-xl border-2 px-4 py-4 text-center text-3xl font-bold',
+                    'tracking-[0.5em] focus:outline-none transition-all bg-white text-slate-900',
+                  )}
+                  style={{
+                    borderColor: mfaError ? '#f87171' : mfaOtp.length === 6 ? '#c49526' : '#e2e8f0',
+                  }}
+                  autoFocus
+                />
+
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setMfaStep('qr')} className="flex-1">
+                    ← Back
+                  </Button>
+                  <Button
+                    size="sm"
+                    loading={mfaLoading}
+                    disabled={mfaOtp.length !== 6}
+                    onClick={handleMfaVerify}
+                    className="flex-1"
+                  >
+                    Verify &amp; activate <ArrowRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step: backup codes */}
+            {mfaStep === 'backup' && (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  <span className="font-semibold text-red-600">These codes are shown once only.</span>{' '}
+                  Save them somewhere safe. Each can be used once to sign in if you lose access to your authenticator.
+                </p>
+
+                <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {mfaBackupCodes.map((code, i) => (
+                      <div key={i} className="flex items-center rounded-lg bg-white border border-amber-200 px-3 py-2">
+                        <span className="text-xs text-slate-400 mr-2 w-4">{i + 1}.</span>
+                        <code className="text-sm font-mono font-semibold text-slate-800 tracking-wider">{code}</code>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(mfaBackupCodes.join('\n')); setCodesCopied(true) }}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all"
+                    style={{ backgroundColor: codesCopied ? '#f0fdf4' : '#0e2040', color: codesCopied ? '#16a34a' : 'white' }}
+                  >
+                    {codesCopied ? <><Check size={14} /> Codes copied</> : <><Copy size={14} /> Copy all codes</>}
+                  </button>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={codesCopied}
+                    onChange={(e) => setCodesCopied(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                    style={{ accentColor: '#c49526' }}
+                  />
+                  <span className="text-xs text-slate-600 leading-snug">
+                    I've saved these backup codes. I understand they won't be shown again.
+                  </span>
+                </label>
+
+                <Button fullWidth disabled={!codesCopied} onClick={closeMfa}>
+                  Done — MFA reconfigured
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* SMS fallback row */}
         <div className="flex items-center justify-between px-6 py-4">
@@ -280,4 +590,3 @@ export function SecurityTab() {
     </div>
   )
 }
-

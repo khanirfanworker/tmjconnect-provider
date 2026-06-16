@@ -4,6 +4,7 @@ import { Suspense, lazy } from 'react'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
+import { AuthInitializer } from '@/components/layout/AuthInitializer'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 // Auth
@@ -56,6 +57,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AuthInitializer>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Auth */}
@@ -92,6 +94,7 @@ export default function App() {
             <Route path="*"   element={<NotFoundPage />} />
           </Routes>
         </Suspense>
+        </AuthInitializer>
       </BrowserRouter>
     </QueryClientProvider>
   )

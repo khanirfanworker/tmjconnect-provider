@@ -3,20 +3,6 @@ import { cn } from '@/lib/cn'
 export type FilterTab = 'all' | 'needs_attention' | 'recent' | 'no_activity' | 'pending_invites'
 export type SortOption = 'urgency' | 'name' | 'last_activity' | 'pain_level' | 'adherence'
 
-interface FilterTabItem {
-  key: FilterTab
-  label: string
-  count: number
-}
-
-const TABS: FilterTabItem[] = [
-  { key: 'all',             label: 'All Patients',      count: 142 },
-  { key: 'needs_attention', label: 'Needs Attention',   count: 2 },
-  { key: 'recent',          label: 'Recent Activity',   count: 38 },
-  { key: 'no_activity',     label: 'No Activity: 7d',   count: 12 },
-  { key: 'pending_invites', label: 'Pending Invites',   count: 4 },
-]
-
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'urgency',       label: 'Urgency (high to low)' },
   { value: 'name',          label: 'Name (A–Z)' },
@@ -25,16 +11,33 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'adherence',     label: 'Exercise Adherence' },
 ]
 
+export interface TabCounts {
+  all:             number
+  needs_attention: number
+  recent:          number
+  no_activity:     number
+  pending_invites: number
+}
+
 interface PatientFiltersProps {
   activeTab: FilterTab
   sortBy: SortOption
+  counts: TabCounts
   onTabChange: (tab: FilterTab) => void
   onSortChange: (sort: SortOption) => void
 }
 
 export function PatientFilters({
-  activeTab, sortBy, onTabChange, onSortChange,
+  activeTab, sortBy, counts, onTabChange, onSortChange,
 }: PatientFiltersProps) {
+  const TABS = [
+    { key: 'all'             as FilterTab, label: 'All Patients',    count: counts.all },
+    { key: 'needs_attention' as FilterTab, label: 'Needs Attention', count: counts.needs_attention },
+    { key: 'recent'          as FilterTab, label: 'Recent Activity', count: counts.recent },
+    { key: 'no_activity'     as FilterTab, label: 'No Activity: 7d', count: counts.no_activity },
+    { key: 'pending_invites' as FilterTab, label: 'Pending Invites', count: counts.pending_invites },
+  ]
+
   return (
     <div className="flex flex-col gap-3">
 

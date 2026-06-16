@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   User, Shield, Bell,
-  HelpCircle, FileText, Trash2
+  FileText, Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
@@ -10,8 +10,7 @@ const NAV_ITEMS = [
   { to: '/profile',               label: 'Profile',             Icon: User },
   { to: '/profile/security',      label: 'Security & sessions', Icon: Shield },
   { to: '/profile/notifications', label: 'Notifications',       Icon: Bell },
-{ section: 'SUPPORT' },
-  { to: '/help',                  label: 'Help & support',      Icon: HelpCircle },
+  { section: 'SUPPORT' },
   { to: '/profile/legal',         label: 'Legal & documents',   Icon: FileText },
   { danger: true },
   { to: '/profile/delete',        label: 'Delete account',      Icon: Trash2, isDanger: true },
@@ -71,7 +70,7 @@ export function SettingsNav() {
             )
           }
           if ('danger' in item) {
-            return <div key={i} className="border-t border-slate-200 mt-4 pt-2" />
+            return <div key={i} className="border-t border-slate-200 mt-2 pt-2" />
           }
           const { to, label, Icon, isDanger } = item as {
             to: string; label: string; Icon: typeof User; isDanger?: boolean

@@ -36,34 +36,48 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 let isRefreshing = false
 let refreshQueue: Array<(token: string) => void> = []
 
+// Shared refresh promise so concurrent 401s all wait on the same refresh call
+let refreshPromise: Promise<string> | null = null
+
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const orig = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
-    if (error.response?.status === 401 && !orig._retry) {
-      orig._retry = true
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push((t) => { orig.headers.Authorization = `Bearer ${t}`; resolve(api(orig)) })
-        })
-      }
-      isRefreshing = true
-      try {
-        const rt = useAuthStore.getState().refreshToken
-        if (!rt) throw new Error('No refresh token')
-        const { data } = await preAuthApi.post('/auth/refresh', { refresh_token: rt })
-        const d = data?.data ?? data
-        const at = d.access_token; const nrt = d.refresh_token
-        useAuthStore.getState().setTokens(at, nrt)
-        refreshQueue.forEach((cb) => cb(at)); refreshQueue = []
-        orig.headers.Authorization = `Bearer ${at}`
-        return api(orig)
-      } catch {
-        refreshQueue = []; useAuthStore.getState().logout()
-        window.location.href = '/login'; return Promise.reject(error)
-      } finally { isRefreshing = false }
+    if (error.response?.status !== 401 || orig._retry) {
+      return Promise.reject(error)
     }
-    return Promise.reject(error)
+    orig._retry = true
+
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        isRefreshing = true
+        try {
+          const rt = useAuthStore.getState().refreshToken
+          if (!rt) throw new Error('No refresh token')
+          const { data } = await preAuthApi.post('/auth/refresh', { refresh_token: rt })
+          const d = data?.data ?? data
+          const at = d.access_token
+          const nrt = d.refresh_token
+          useAuthStore.getState().setTokens(at, nrt)
+          refreshQueue.forEach((cb) => cb(at))
+          refreshQueue = []
+          return at
+        } catch (e) {
+          refreshQueue = []
+          useAuthStore.getState().logout()
+          window.location.href = '/login'
+          throw e
+        } finally {
+          isRefreshing = false
+          refreshPromise = null
+        }
+      })()
+    }
+
+    return refreshPromise.then((at) => {
+      orig.headers.Authorization = `Bearer ${at}`
+      return api(orig)
+    })
   }
 )
 
