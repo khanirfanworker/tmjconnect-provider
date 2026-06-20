@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Download, UserPlus, UserRound } from 'lucide-react'
+import { UserPlus, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 import { dashboardService } from '@/services/dashboardService'
@@ -183,10 +183,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <Button variant="secondary" size="sm">
-            <Download size={14} /> Export
-          </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => navigate('/invite')}>
             <UserPlus size={14} /> Invite patient
           </Button>
         </div>

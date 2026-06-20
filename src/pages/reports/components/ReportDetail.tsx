@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, CheckCircle, AlertTriangle, Image as ImageIcon, Send } from 'lucide-react'
+import { ArrowRight, CheckCircle, AlertTriangle, Image as ImageIcon, Send, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { formatDate, formatTime } from '@/utils/formatters'
 import { reportsService, ReportDetail as ReportDetailType } from '@/services/reportsService'
@@ -22,10 +22,12 @@ export function ReportDetail({ report, onUpdate }: Props) {
   const [response, setResponse]       = useState('')
   const [sending, setSending]         = useState(false)
   const [marking, setMarking]         = useState(false)
+  const [flagging, setFlagging]       = useState(false)
   const [showReply, setShowReply]     = useState(false)
   const [sent, setSent]               = useState(false)
 
-  const painJump = report.painScore - report.previousPainScore
+  // Only a real, non-null previous score counts — never fabricate a "previous report".
+  const painJump = report.previousPainScore !== null ? report.painScore - report.previousPainScore : null
 
   async function handleMarkReviewed() {
     setMarking(true)
@@ -34,11 +36,27 @@ export function ReportDetail({ report, onUpdate }: Props) {
     setMarking(false)
   }
 
+  async function handleToggleFlag() {
+    setFlagging(true)
+    try {
+      await reportsService.flagReport(report.id)
+      onUpdate(report.id, { isFlagged: !report.isFlagged })
+    } finally {
+      setFlagging(false)
+    }
+  }
+
   async function handleSendResponse() {
     if (!response.trim()) return
     setSending(true)
     await reportsService.sendResponse(report.id, response)
-    onUpdate(report.id, { status: 'responded' })
+    onUpdate(report.id, {
+      status: 'responded',
+      priorResponses: [
+        ...report.priorResponses,
+        { id: `local-${Date.now()}`, message: response, internalNotes: null, respondedAt: new Date().toISOString() },
+      ],
+    })
     setSent(true)
     setResponse('')
     setShowReply(false)
@@ -61,16 +79,27 @@ export function ReportDetail({ report, onUpdate }: Props) {
           </div>
           <div>
             <p className="text-base font-bold text-slate-900">{report.patientName}</p>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span>{report.patientAge} · {report.patientCondition}</span>
-              <span>·</span>
-              <span>Linked {report.linkedWeeks} weeks</span>
-            </div>
+            {(() => {
+              const bits = [
+                report.patientAge > 0 ? `${report.patientAge}` : null,
+                report.patientCondition || null,
+                report.linkedWeeks > 0 ? `Linked ${report.linkedWeeks} weeks` : null,
+              ].filter(Boolean)
+              return bits.length > 0 ? (
+                <div className="flex items-center gap-1 text-xs text-slate-400">
+                  {bits.join(' · ')}
+                </div>
+              ) : null
+            })()}
           </div>
         </div>
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" loading={flagging} onClick={handleToggleFlag}>
+            <Flag size={13} fill={report.isFlagged ? 'currentColor' : 'none'} />
+            {report.isFlagged ? 'Unflag' : 'Flag'}
+          </Button>
           {report.status !== 'reviewed' && report.status !== 'responded' ? (
             <Button size="sm" loading={marking} onClick={handleMarkReviewed}>
               <CheckCircle size={13} /> Mark reviewed
@@ -103,19 +132,29 @@ export function ReportDetail({ report, onUpdate }: Props) {
             <AlertTriangle size={11} /> URGENT
           </span>
         )}
+        {report.isFlagged && (
+          <span className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold"
+                style={{ color: '#b45309', borderColor: '#fde68a', backgroundColor: '#fffbeb' }}>
+            <Flag size={11} fill="currentColor" /> FLAGGED
+          </span>
+        )}
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
           Submitted: {formatDate(report.submittedAt)} · {formatTime(report.submittedAt)}
         </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-          Via: {report.submittedVia}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-          Location: {report.location}
-        </span>
+        {report.submittedVia && (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+            Via: {report.submittedVia}
+          </span>
+        )}
+        {report.location && (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+            Location: {report.location}
+          </span>
+        )}
       </div>
 
-      {/* ── Pain spike alert card ──────────────────────────────── */}
-      {painJump >= 2 && (
+      {/* ── Pain spike alert card — only rendered when the backend gives a real previous score ── */}
+      {painJump !== null && painJump >= 2 && (
         <div className="mx-6 mb-4 rounded-xl border border-slate-200 flex overflow-hidden flex-shrink-0">
           {/* Big pain number */}
           <div className="flex flex-col items-center justify-center px-5 py-4 border-r border-slate-200"
@@ -131,8 +170,14 @@ export function ReportDetail({ report, onUpdate }: Props) {
               Pain spike — crossed urgent threshold
             </p>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Previous report {report.previousReportDaysAgo} days ago was {report.previousPainScore}/10.
-              This represents a {painJump}-point jump in {report.previousReportDaysAgo * 24} hours.
+              {report.previousReportDaysAgo !== null ? (
+                <>
+                  Previous report {report.previousReportDaysAgo} day{report.previousReportDaysAgo === 1 ? '' : 's'} ago was {report.previousPainScore}/10.
+                  This represents a {painJump}-point jump in {report.previousReportDaysAgo * 24} hours.
+                </>
+              ) : (
+                <>Previous report was {report.previousPainScore}/10 — a {painJump}-point jump.</>
+              )}
             </p>
           </div>
         </div>
@@ -165,12 +210,33 @@ export function ReportDetail({ report, onUpdate }: Props) {
             </div>
             <div className="space-y-0.5 text-xs text-slate-500">
               <p className="font-semibold text-slate-700">{report.photoFilename}</p>
-              <p>Resolution: {report.photoResolution}</p>
-              <p>{report.photoTime}</p>
+              {report.photoResolution && <p>Resolution: {report.photoResolution}</p>}
+              {report.photoTime && <p>{report.photoTime}</p>}
               {report.photoNote && (
                 <p className="italic">Patient note: '{report.photoNote}'</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Prior responses ──────────────────────────────────────── */}
+      {report.priorResponses.length > 0 && (
+        <div className="px-6 mb-4 flex-shrink-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            Your Response{report.priorResponses.length > 1 ? 's' : ''}
+          </p>
+          <div className="space-y-2">
+            {report.priorResponses.map((resp) => (
+              <div key={resp.id} className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                <p className="text-sm text-slate-700 leading-relaxed">{resp.message}</p>
+                {resp.respondedAt && (
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    {formatDate(resp.respondedAt)} · {formatTime(resp.respondedAt)}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -185,7 +251,7 @@ export function ReportDetail({ report, onUpdate }: Props) {
           <>
             {!showReply ? (
               <Button fullWidth variant="secondary" onClick={() => setShowReply(true)}>
-                <Send size={14} /> Reply to patient
+                <Send size={14} /> {report.priorResponses.length > 0 ? 'Send another response' : 'Reply to patient'}
               </Button>
             ) : (
               <div className="space-y-3">

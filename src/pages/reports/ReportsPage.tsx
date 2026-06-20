@@ -4,6 +4,7 @@ import { Filter, ArrowLeft, ArrowRight, MessageSquare, X, Clock, CheckCircle2 } 
 import { useNavigate } from 'react-router-dom'
 import { reportsService } from '@/services/reportsService'
 import type { ReportDetail, ReportRequest } from '@/services/reportsService'
+import { dashboardService } from '@/services/dashboardService'
 import { ReportListItem } from './components/ReportListItem'
 import { ReportDetail as ReportDetailPanel } from './components/ReportDetail'
 import { Button } from '@/components/ui/Button'
@@ -13,11 +14,11 @@ import { cn } from '@/lib/cn'
 type Tab = 'all' | 'urgent' | 'awaiting' | 'responded' | 'flagged' | 'requests'
 
 const INBOX_TABS: { key: Tab; label: string; filter: (r: ReportDetail) => boolean }[] = [
-  { key: 'all',       label: 'All',       filter: () => true },
-  { key: 'urgent',    label: 'Urgent',    filter: (r) => r.urgency === 'urgent' },
-  { key: 'awaiting',  label: 'Awaiting',  filter: (r) => r.status === 'unreviewed' },
-  { key: 'responded', label: 'Responded', filter: (r) => r.status === 'responded' },
-  { key: 'flagged',   label: 'Flagged',   filter: (r) => r.isFlagged },
+  { key: 'all',       label: 'All',               filter: () => true },
+  { key: 'urgent',    label: 'Urgent',            filter: (r) => r.urgency === 'urgent' },
+  { key: 'awaiting',  label: 'Awaiting response', filter: (r) => r.status === 'unreviewed' },
+  { key: 'responded', label: 'Responded',         filter: (r) => r.status === 'responded' },
+  { key: 'flagged',   label: 'Flagged',           filter: (r) => r.isFlagged },
 ]
 
 const COLORS = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#ef4444','#10b981','#3b82f6']
@@ -46,6 +47,7 @@ export default function ReportsPage() {
   // ── Requests tab state ────────────────────────────────────────────────────
   const [selectedReqId, setSelectedReqId]   = useState<string | null>(null)
   const [dismissingId, setDismissingId]     = useState<string | null>(null)
+  const [markingAll, setMarkingAll]         = useState(false)
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: fetchedReports = [], isLoading } = useQuery<ReportDetail[]>({
@@ -57,6 +59,13 @@ export default function ReportsPage() {
   const { data: reportRequests = [], isLoading: reqLoading } = useQuery<ReportRequest[]>({
     queryKey: ['report-requests'],
     queryFn:  () => reportsService.getReportRequests({ status: 'pending' }),
+  })
+
+  // Reuses the dashboard summary endpoint's avgResponseTime — shares the cache with the Dashboard page
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn:  dashboardService.getStats,
+    staleTime: 1000 * 60 * 2,
   })
 
   // Bulk-mark inbox as viewed once reports load
@@ -84,7 +93,16 @@ export default function ReportsPage() {
     setDetailLoading(true)
     try {
       const full = await reportsService.getReportDetail(id)
-      setDetailData(full)
+      // The detail endpoint doesn't return patient identity fields — only patient_id.
+      // Keep the name/initials/color/preview already known from the inbox list.
+      const listItem = reports.find((r) => r.id === id)
+      setDetailData(listItem ? {
+        ...full,
+        patientName: listItem.patientName,
+        patientInitials: listItem.patientInitials,
+        patientColor: listItem.patientColor,
+        firstLine: listItem.firstLine || full.firstLine,
+      } : full)
     } catch {
       // fall back to inbox data
     } finally {
@@ -96,6 +114,16 @@ export default function ReportsPage() {
     setLocalReports(
       (localReports ?? fetchedReports).map((r) => r.id === id ? { ...r, ...changes } : r)
     )
+  }
+
+  async function handleMarkAllRead() {
+    setMarkingAll(true)
+    try {
+      await reportsService.markAllViewed()
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+    } finally {
+      setMarkingAll(false)
+    }
   }
 
   async function handleDismissRequest(id: string) {
@@ -139,21 +167,41 @@ export default function ReportsPage() {
     <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)' }}>
 
       {/* Header */}
-      <div className="flex-shrink-0 mb-4">
-        <h1 className="text-2xl font-bold text-slate-900">Reports inbox</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          <span className="font-semibold text-slate-700">{tabCounts.awaiting} awaiting response</span>
-          {tabCounts.urgent > 0 && (
-            <span className="font-semibold ml-1.5" style={{ color: '#dc2626' }}>
-              · {tabCounts.urgent} urgent
-            </span>
-          )}
-          {tabCounts.requests > 0 && (
-            <span className="font-semibold ml-1.5" style={{ color: '#d97706' }}>
-              · {tabCounts.requests} pending {tabCounts.requests === 1 ? 'request' : 'requests'}
-            </span>
-          )}
-        </p>
+      <div className="flex-shrink-0 mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Reports inbox</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            <span className="font-semibold text-slate-700">{tabCounts.awaiting} awaiting response</span>
+            {tabCounts.urgent > 0 && (
+              <span className="font-semibold ml-1.5" style={{ color: '#dc2626' }}>
+                · {tabCounts.urgent} urgent
+              </span>
+            )}
+            {stats?.avgResponseTime && stats.avgResponseTime !== '—' && (
+              <span className="ml-1.5">· Avg response time {stats.avgResponseTime}</span>
+            )}
+            {tabCounts.requests > 0 && (
+              <span className="font-semibold ml-1.5" style={{ color: '#d97706' }}>
+                · {tabCounts.requests} pending {tabCounts.requests === 1 ? 'request' : 'requests'}
+              </span>
+            )}
+          </p>
+        </div>
+
+        {!isRequestsTab && (
+          <div className="flex items-center gap-3 flex-shrink-0 pt-1">
+            <button
+              onClick={handleMarkAllRead}
+              disabled={markingAll || reports.length === 0}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-40 transition-colors"
+            >
+              {markingAll ? 'Marking…' : 'Mark all read'}
+            </button>
+            <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors">
+              <Filter size={12} /> Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Split panel */}
@@ -195,12 +243,6 @@ export default function ReportsPage() {
                   </button>
                 ))}
               </div>
-              {!isRequestsTab && (
-                <button className="flex-shrink-0 flex items-center gap-1 text-xs text-slate-500
-                                   hover:text-slate-700 ml-1 pb-2">
-                  <Filter size={12} /> Filters
-                </button>
-              )}
             </div>
           </div>
 

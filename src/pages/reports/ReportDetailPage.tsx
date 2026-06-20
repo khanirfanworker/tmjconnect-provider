@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { reportsService } from '@/services/reportsService'
 import type { ReportDetail } from '@/services/reportsService'
+import { dashboardService } from '@/services/dashboardService'
 import { ReportDetail as ReportDetailPanel } from './components/ReportDetail'
 
 export default function ReportDetailPage() {
@@ -15,6 +16,20 @@ export default function ReportDetailPage() {
     queryFn:  () => reportsService.getReportDetail(id!),
     enabled:  !!id,
   })
+
+  // The report detail payload only carries patient_id, no name — reached directly via
+  // search/deep-link with no list context to borrow a name from, so resolve it here.
+  const { data: patient } = useQuery({
+    queryKey: ['patient', report?.patientId],
+    queryFn:  () => dashboardService.getPatientDetail(report!.patientId),
+    enabled:  !!report?.patientId,
+  })
+
+  const enrichedReport: ReportDetail | undefined = report && patient ? {
+    ...report,
+    patientName: patient.fullName,
+    patientInitials: patient.fullName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase() || report.patientInitials,
+  } : report
 
   function handleUpdate(reportId: string, changes: Partial<ReportDetail>) {
     queryClient.setQueryData<ReportDetail>(['report', id], (prev) =>
@@ -57,9 +72,9 @@ export default function ReportDetailPage() {
           </div>
         )}
 
-        {report && (
+        {enrichedReport && (
           <ReportDetailPanel
-            report={report}
+            report={enrichedReport}
             onUpdate={handleUpdate}
           />
         )}

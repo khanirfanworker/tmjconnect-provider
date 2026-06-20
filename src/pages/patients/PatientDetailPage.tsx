@@ -4,13 +4,12 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ArrowLeft, Calendar, Activity,
   CheckCircle2, Clock, Play, Send, Dumbbell, Flag,
-  Download, MessageSquare,
+  MessageSquare, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/Badge'
-import { Sparkline } from '@/components/ui/Sparkline'
 import { dashboardService } from '@/services/dashboardService'
-import { exercisesService } from '@/services/exercisesService'
+import { exercisesService, type PatientAssignment } from '@/services/exercisesService'
 import { formatDate, timeAgo, formatDuration } from '@/utils/formatters'
 import { PatientStatus } from '@/types'
 import { PatientAssignModal } from './components/PatientAssignModal'
@@ -101,10 +100,13 @@ function buildRecentActivity(
 
   return [...reportItems, ...symptomItems]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 4)
 }
 
-function RecentActivity({ items, onViewAll }: { items: ActivityItem[]; onViewAll: () => void }) {
+const ACTIVITY_PAGE = 5
+
+function RecentActivity({ items }: { items: ActivityItem[] }) {
+  const [showAll, setShowAll] = useState(false)
+
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -114,17 +116,20 @@ function RecentActivity({ items, onViewAll }: { items: ActivityItem[]; onViewAll
     )
   }
 
+  const visible = showAll ? items : items.slice(0, ACTIVITY_PAGE)
+  const hasMore = items.length > ACTIVITY_PAGE
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-slate-700">Recent activity</h3>
-        <button onClick={onViewAll} className="text-xs font-semibold hover:underline" style={{ color: '#0e2040' }}>
-          View all →
-        </button>
+        {!showAll && hasMore && (
+          <span className="text-xs text-slate-400">{items.length} total</span>
+        )}
       </div>
 
       <div className="space-y-5">
-        {items.map((item, i) => {
+        {visible.map((item, i) => {
           const d = new Date(item.date)
           const isToday = new Date().toDateString() === d.toDateString()
           const isYesterday = new Date(Date.now() - 86400000).toDateString() === d.toDateString()
@@ -135,7 +140,7 @@ function RecentActivity({ items, onViewAll }: { items: ActivityItem[]; onViewAll
             <div key={i} className="flex gap-3">
               <div className="flex flex-col items-center flex-shrink-0">
                 <div className="h-3 w-3 rounded-full border-2 bg-white" style={{ borderColor: item.dotColor }} />
-                {i < items.length - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
+                {i < visible.length - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
               </div>
               <div className="flex-1 min-w-0 pb-1">
                 <p className="text-xs text-slate-400 mb-1">{dayLabel} · {timeLabel}</p>
@@ -145,6 +150,299 @@ function RecentActivity({ items, onViewAll }: { items: ActivityItem[]; onViewAll
             </div>
           )
         })}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={() => setShowAll(v => !v)}
+          className="mt-5 w-full rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
+        >
+          {showAll ? 'Show less ↑' : `View all ${items.length} activities →`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Pain trend line chart (overview tab) ────────────────────────────────────
+function PainTrendChart({
+  symptoms,
+  isLoading = false,
+  patientFirstName,
+}: {
+  symptoms: { loggedAt: string; painLevel: number }[]
+  isLoading?: boolean
+  patientFirstName?: string
+}) {
+  // Chart constants
+  const W = 580, H = 200
+  const PL = 30, PR = 20, PT = 32, PB = 36
+  const plotW = W - PL - PR
+  const plotH = H - PT - PB
+
+  // Aggregate real symptom logs by calendar date only
+  const byDate = new Map<string, number[]>()
+  symptoms.forEach(s => {
+    if (!s.loggedAt) return
+    const d = s.loggedAt.split('T')[0]
+    if (!byDate.has(d)) byDate.set(d, [])
+    byDate.get(d)!.push(s.painLevel)
+  })
+  const days = [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, vals]) => ({
+      date,
+      upper: Math.max(...vals),                                          // daily max (navy)
+      lower: vals.reduce((s, v) => s + v, 0) / vals.length,             // daily avg (gold)
+    }))
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 pt-5 pb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="h-4 w-32 rounded bg-slate-100 animate-pulse" />
+          <div className="h-3 w-36 rounded bg-slate-100 animate-pulse" />
+        </div>
+        <div className="h-40 rounded-xl bg-slate-50 animate-pulse" />
+      </div>
+    )
+  }
+
+  // Empty state — no symptom logs yet
+  if (days.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-slate-700 mb-1">Pain over time</h3>
+        <div className="h-40 flex flex-col items-center justify-center gap-2">
+          <Activity size={28} className="text-slate-200" />
+          <p className="text-sm text-slate-400">No symptom logs recorded yet.</p>
+          <p className="text-xs text-slate-300">The chart will appear once the patient logs their first symptom.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const n = days.length - 1
+  const xOf = (i: number) =>
+    PL + (n === 0 ? plotW / 2 : (i / n) * plotW)
+  const yOf = (v: number) =>
+    PT + plotH - (Math.min(Math.max(v, 0), 10) / 10) * plotH
+
+  // Catmull-Rom → cubic bezier for smooth curves (tension T controls tightness)
+  function smoothPath(vals: number[]): string {
+    const pts = vals.map((v, i) => [xOf(i), yOf(v)] as [number, number])
+    if (pts.length === 1) return `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`
+    const T = 0.3
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)]
+      const p1 = pts[i]
+      const p2 = pts[i + 1]
+      const p3 = pts[Math.min(i + 2, pts.length - 1)]
+      const cp1x = p1[0] + (p2[0] - p0[0]) * T
+      const cp1y = p1[1] + (p2[1] - p0[1]) * T
+      const cp2x = p2[0] - (p3[0] - p1[0]) * T
+      const cp2y = p2[1] - (p3[1] - p1[1]) * T
+      d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
+    }
+    return d
+  }
+
+  const upperVals = days.map(d => d.upper)  // navy line (higher)
+  const lowerVals = days.map(d => d.lower)  // gold line (lower)
+  const upperPath = smoothPath(upperVals)
+  const lowerPath = smoothPath(lowerVals)
+
+  // Fill between lines: forward along upper, backward along lower
+  const fwdPts  = upperVals.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')
+  const bwdPts  = [...lowerVals].reverse().map((v, i) => `L${xOf(n - i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')
+  const fillBetween = `${fwdPts} ${bwdPts} Z`
+
+  const urgentY = yOf(7)
+
+  // X-axis labels: up to 7 evenly spaced + always last
+  const step = Math.max(1, Math.ceil(days.length / 7))
+  const labelIdxs = new Set<number>()
+  for (let i = 0; i < days.length; i += step) labelIdxs.add(i)
+  labelIdxs.add(n)
+
+  const fmtDate = (ds: string) =>
+    new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+
+  const fmtDateLong = (ds: string) =>
+    new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  // ── Trend detection — derived strictly from real daily-avg pain values ──
+  // "Trending up": second half of the last-7-days window averages ≥0.5 higher than the first half.
+  // "Crossed + sustained urgent": earliest day in the FULL history where avg ≥7, with every day since also ≥7.
+  const trendWindow = days.slice(-7)
+  let trendAlert: { crossedDate: string | null; sustainedUrgent: boolean } | null = null
+  if (trendWindow.length >= 3) {
+    const mid = Math.max(1, Math.floor(trendWindow.length / 2))
+    const firstHalf  = trendWindow.slice(0, mid)
+    const secondHalf = trendWindow.slice(mid)
+    const firstAvg  = firstHalf.reduce((s, d) => s + d.lower, 0) / firstHalf.length
+    const secondAvg = secondHalf.reduce((s, d) => s + d.lower, 0) / secondHalf.length
+    const trendingUp = secondAvg - firstAvg >= 0.5
+
+    if (trendingUp) {
+      const crossIdx = days.findIndex(d => d.lower >= 7)
+      const sustainedUrgent = crossIdx !== -1 && days.slice(crossIdx).every(d => d.lower >= 7)
+      trendAlert = {
+        crossedDate: sustainedUrgent ? days[crossIdx].date : null,
+        sustainedUrgent,
+      }
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-5 pt-5 pb-2">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold text-slate-700">Pain over time</h3>
+        <div className="flex items-center gap-5" style={{ color: '#94a3b8', fontSize: 11 }}>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-5 h-0.5 rounded-full" style={{ backgroundColor: '#c49526' }} />
+            Avg pain
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-5 h-0.5 rounded-full" style={{ backgroundColor: '#0e2040' }} />
+            Max pain
+          </span>
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} xmlns="http://www.w3.org/2000/svg">
+
+        {/* Horizontal grid lines */}
+        {[0, 2.5, 5, 7.5, 10].map(v => (
+          <line key={v} x1={PL} y1={yOf(v)} x2={W - PR} y2={yOf(v)}
+                stroke={v === 0 ? '#e2e8f0' : '#f1f5f9'} strokeWidth="1" />
+        ))}
+
+        {/* Cream fill between upper and lower lines */}
+        <path d={fillBetween} fill="#faf3e6" fillOpacity="0.55" />
+
+        {/* URGENT ≥ 7 dashed threshold */}
+        <line x1={PL} y1={urgentY} x2={W - PR} y2={urgentY}
+              stroke="#fca5a5" strokeWidth="1" strokeDasharray="5 3" />
+        <text x={PL + 6} y={urgentY - 6} fill="#ef4444" fontSize="9"
+              fontFamily="Inter, sans-serif" fontWeight="500" letterSpacing="0.06em">
+          URGENT ≥ 7
+        </text>
+
+        {/* Navy upper line */}
+        <path d={upperPath} stroke="#0e2040" strokeWidth="1.5" fill="none"
+              strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Gold lower line */}
+        <path d={lowerPath} stroke="#c49526" strokeWidth="2" fill="none"
+              strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* TODAY dot on gold line */}
+        <circle cx={xOf(n)} cy={yOf(lowerVals[n])} r="5" fill="#c49526" />
+
+        {/* Y axis labels */}
+        {[0, 2.5, 5, 7.5].map(v => (
+          <text key={v} x={PL - 5} y={yOf(v) + 3.5} textAnchor="end"
+                fill="#cbd5e1" fontSize="9" fontFamily="Inter, sans-serif">{v}</text>
+        ))}
+
+        {/* X axis labels */}
+        {[...labelIdxs].sort((a, b) => a - b).map(i => {
+          const isLast = i === n
+          return (
+            <text key={i} x={xOf(i)} y={H - 9} textAnchor="middle"
+                  fill={isLast ? '#c49526' : '#cbd5e1'} fontSize="9"
+                  fontFamily="Inter, sans-serif" fontWeight={isLast ? '700' : '400'}>
+              {isLast ? 'TODAY' : fmtDate(days[i].date)}
+            </text>
+          )
+        })}
+
+      </svg>
+
+      {trendAlert && (
+        <div className="mb-4 mt-1 flex items-start gap-2.5 rounded-xl border px-4 py-3"
+             style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}>
+          <AlertTriangle size={16} style={{ color: '#dc2626' }} className="flex-shrink-0 mt-0.5" />
+          <p className="text-sm leading-relaxed" style={{ color: '#7f1d1d' }}>
+            <span className="font-bold">Pain trending up over 7 days.</span>{' '}
+            {trendAlert.sustainedUrgent && trendAlert.crossedDate ? (
+              <>{patientFirstName ?? 'Patient'} crossed the urgent threshold on {fmtDateLong(trendAlert.crossedDate)} and has not dropped below it since.</>
+            ) : (
+              <>Daily average pain has been rising over the last week — consider checking in with {patientFirstName ?? 'the patient'}.</>
+            )}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Edit Assignment Modal ────────────────────────────────────────────────────
+function EditAssignmentModal({
+  assignment,
+  onSave,
+  onClose,
+}: {
+  assignment: PatientAssignment
+  onSave: (id: string, data: { frequency?: string; sets?: number; status?: 'active' | 'paused' | 'completed' }) => Promise<void>
+  onClose: () => void
+}) {
+  const [frequency, setFrequency] = useState(assignment.frequency)
+  const [sets, setSets]           = useState(assignment.sets)
+  const [status, setStatus]       = useState<'active' | 'paused' | 'completed'>(assignment.status)
+  const [saving, setSaving]       = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await onSave(assignment.assignmentId, { frequency, sets, status })
+      onClose()
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="text-base font-bold text-slate-900">Edit assignment</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm font-semibold text-slate-700">{assignment.title}</p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Frequency</label>
+            <select value={frequency} onChange={e => setFrequency(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2">
+              <option value="daily">Daily</option>
+              <option value="2x_daily">2× daily</option>
+              <option value="3x_daily">3× daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Sets</label>
+            <input type="number" min={1} max={10} value={sets}
+                   onChange={e => setSets(Number(e.target.value))}
+                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value as 'active' | 'paused' | 'completed')}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2">
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" loading={saving} onClick={handleSave}>Save changes</Button>
+        </div>
       </div>
     </div>
   )
@@ -222,8 +520,7 @@ export default function PatientDetailPage() {
   const [activeTab, setActiveTab]           = useState<TabKey>('overview')
   const [showRequestReport, setShowRequest] = useState(false)
   const [showAssign, setShowAssign]         = useState(false)
-  const [diagnosis, setDiagnosis]           = useState('')
-  const [savingDx, setSavingDx]             = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState<PatientAssignment | null>(null)
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patient', id],
@@ -267,13 +564,14 @@ export default function PatientDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patient-assignments', id] }),
   })
 
-  async function handleSaveDiagnosis() {
-    if (!id || !diagnosis.trim()) return
-    setSavingDx(true)
-    try {
-      await dashboardService.updatePatientLink(id, diagnosis.trim())
-      queryClient.invalidateQueries({ queryKey: ['patient', id] })
-    } finally { setSavingDx(false) }
+  const editAssignment = useMutation({
+    mutationFn: ({ assignmentId, payload }: { assignmentId: string; payload: { frequency?: string; sets?: number; status?: 'active' | 'paused' | 'completed' } }) =>
+      exercisesService.updateAssignment(assignmentId, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patient-assignments', id] }),
+  })
+
+  async function handleEditSave(assignmentId: string, payload: { frequency?: string; sets?: number; status?: 'active' | 'paused' | 'completed' }) {
+    await editAssignment.mutateAsync({ assignmentId, payload })
   }
 
   // Adherence stats from assignments
@@ -420,12 +718,11 @@ export default function PatientDetailPage() {
       {/* ── OVERVIEW TAB ──────────────────────────────────────────────────── */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-slate-700 mb-4">14-Day Pain Trend</h3>
-            <div className="flex items-center justify-center py-2">
-              <Sparkline data={patient.painTrend} width={400} height={80} linkedSince={patient.linkedSince} />
-            </div>
-          </div>
+          <PainTrendChart
+            symptoms={symptoms}
+            isLoading={symptomsLoading}
+            patientFirstName={(patient.fullName ?? '').split(' ')[0]}
+          />
 
           {analytics && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -457,40 +754,7 @@ export default function PatientDetailPage() {
             </div>
           )}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-700">Treatment Summary</h3>
-            <div>
-              <p className="text-xs text-slate-400 mb-1">Adherence (30 days)</p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full transition-all"
-                       style={{ width: `${adherencePct}%`, backgroundColor: adherenceColor }} />
-                </div>
-                <span className="text-xs font-semibold text-slate-700">{adherencePct}%</span>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 mb-1">Update diagnosis / condition</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder={patient.condition || 'Enter diagnosis…'}
-                  value={diagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
-                             focus:outline-none focus:ring-2 focus:border-transparent"
-                />
-                <Button size="sm" loading={savingDx} disabled={!diagnosis.trim()} onClick={handleSaveDiagnosis}>
-                  Save
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <RecentActivity
-            items={buildRecentActivity(symptoms, reports)}
-            onViewAll={() => setActiveTab('symptoms')}
-          />
+          <RecentActivity items={buildRecentActivity(symptoms, reports)} />
         </div>
       )}
 
@@ -522,14 +786,10 @@ export default function PatientDetailPage() {
 
               {/* Symptom log list */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between px-1">
+                <div className="px-1">
                   <p className="text-xs uppercase tracking-wider text-slate-400">
                     {symptoms.length} entries
                   </p>
-                  <button className="flex items-center gap-1.5 text-xs font-semibold hover:underline"
-                          style={{ color: '#0e2040' }}>
-                    <Download size={12} /> Export CSV
-                  </button>
                 </div>
 
                 {symptoms.map((s) => {
@@ -750,8 +1010,11 @@ export default function PatientDetailPage() {
                       </div>
 
                       {/* Edit link */}
-                      <button className="text-xs font-semibold flex-shrink-0 hover:underline"
-                              style={{ color: '#0e2040' }}>
+                      <button
+                        onClick={() => setEditingAssignment(a)}
+                        className="text-xs font-semibold flex-shrink-0 hover:underline"
+                        style={{ color: '#0e2040' }}
+                      >
                         Edit →
                       </button>
                     </div>
@@ -833,6 +1096,15 @@ export default function PatientDetailPage() {
       )}
 
       </div>
+
+      {/* Edit Assignment Modal */}
+      {editingAssignment && (
+        <EditAssignmentModal
+          assignment={editingAssignment}
+          onSave={handleEditSave}
+          onClose={() => setEditingAssignment(null)}
+        />
+      )}
 
       {/* Request Report Modal */}
       {showRequestReport && id && (
