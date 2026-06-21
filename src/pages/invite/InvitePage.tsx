@@ -24,7 +24,7 @@ function InviteCodeModal({ onClose }: { onClose: () => void }) {
   })
 
   const sendInvite = useMutation({
-    mutationFn: () => inviteService.sendEmailInvite(codeData!.code, email, name || undefined),
+    mutationFn: () => inviteService.sendEmailInvite(codeData!.code, email, name.trim()),
     onSuccess: () => { setEmailSent(true); setEmailErr(null) },
     onError:   () => setEmailErr('Failed to send invite. Please try again.'),
   })
@@ -104,7 +104,7 @@ function InviteCodeModal({ onClose }: { onClose: () => void }) {
               </p>
               <input
                 type="text"
-                placeholder="Patient name (optional)"
+                placeholder="Patient name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
@@ -122,7 +122,7 @@ function InviteCodeModal({ onClose }: { onClose: () => void }) {
                 <Button
                   size="sm"
                   loading={sendInvite.isPending}
-                  disabled={!email || !codeData}
+                  disabled={!email || !name.trim() || !codeData}
                   onClick={() => sendInvite.mutate()}
                 >
                   <Mail size={13} /> Email

@@ -36,7 +36,7 @@ export interface RegisterRequest {
   first_name: string
   last_name: string
   date_of_birth?: string
-  phone?: string
+  phone: string
   license_type: string
   specialty: string
   clinic_name: string

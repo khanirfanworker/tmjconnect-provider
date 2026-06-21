@@ -11,6 +11,7 @@ import { PatientTable } from './components/PatientTable'
 import { PatientRow } from '@/services/dashboardService'
 import type { DashboardStats } from '@/services/dashboardService'
 import { inviteService } from '@/services/inviteService'
+import { useTourStore } from '@/store/tourStore'
 
 /** Time-aware greeting */
 function greeting() {
@@ -30,6 +31,7 @@ function todayLabel() {
 export default function DashboardPage() {
   const { provider } = useAuthStore()
   const navigate = useNavigate()
+  const startTour = useTourStore((s) => s.start)
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
   const [sortBy, setSortBy]       = useState<SortOption>('urgency')
 
@@ -138,10 +140,10 @@ export default function DashboardPage() {
         </p>
 
         <div className="flex items-center gap-3 mb-12">
-          <Button size="md" onClick={() => navigate('/invite')}>
+          <Button data-tour="invite-button" size="md" onClick={() => navigate('/invite')}>
             <UserPlus size={15} /> Generate invite code
           </Button>
-          <Button variant="secondary" size="md" disabled>
+          <Button variant="secondary" size="md" onClick={startTour}>
             Take the product tour
           </Button>
         </div>
@@ -183,26 +185,28 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <Button size="sm" onClick={() => navigate('/invite')}>
+          <Button data-tour="invite-button" size="sm" onClick={() => navigate('/invite')}>
             <UserPlus size={14} /> Invite patient
           </Button>
         </div>
       </div>
 
       {/* ── Stat cards ──────────────────────────────────────────────── */}
-      {statsLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 rounded-2xl border border-slate-200 bg-white animate-pulse" />
-          ))}
-        </div>
-      ) : statsError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          Failed to load dashboard. <button onClick={() => window.location.reload()} className="underline font-medium">Retry</button>
-        </div>
-      ) : stats ? (
-        <StatCards stats={stats} />
-      ) : null}
+      <div data-tour="stat-cards">
+        {statsLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 rounded-2xl border border-slate-200 bg-white animate-pulse" />
+            ))}
+          </div>
+        ) : statsError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            Failed to load dashboard. <button onClick={() => window.location.reload()} className="underline font-medium">Retry</button>
+          </div>
+        ) : stats ? (
+          <StatCards stats={stats} />
+        ) : null}
+      </div>
 
       {/* ── Filters ─────────────────────────────────────────────────── */}
       <PatientFilters

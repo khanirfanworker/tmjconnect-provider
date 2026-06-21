@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { OfflineBanner } from '@/components/ui/OfflineBanner'
+import { ProductTour } from '@/components/tour/ProductTour'
 import { useSessionTimeout } from '@/hooks/useSessionTimeout'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
@@ -44,6 +45,8 @@ export function AppLayout() {
 
       {/* Offline banner — full width at very top, matches design */}
       <OfflineBanner />
+
+      <ProductTour />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
 

@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Search, FileText, Video, MessageCircle, ChevronDown, ChevronRight, ArrowRight, CheckCircle } from 'lucide-react'
+import { Search, FileText, Video, MessageCircle, Compass, ChevronDown, ChevronRight, ArrowRight, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
 import api from '@/services/api'
+import { useTourStore } from '@/store/tourStore'
 
 async function submitTicket(payload: { category: string; subject: string; body: string; attach_diagnostic: boolean }) {
   const { data } = await api.post('/support/tickets', payload)
@@ -19,8 +21,16 @@ const FAQS = [
 ]
 
 export default function HelpPage() {
+  const navigate    = useNavigate()
+  const startTour   = useTourStore((s) => s.start)
   const [search, setSearch]   = useState('')
   const [openFaq, setOpenFaq] = useState<number | null>(0)
+
+  function handleStartTour() {
+    navigate('/dashboard')
+    // Let the dashboard mount (stat cards, invite button) before the tour measures targets.
+    window.setTimeout(startTour, 300)
+  }
 
   // ── Support ticket state ──────────────────────────────────
   const [category, setCategory]           = useState('technical')
@@ -79,8 +89,9 @@ export default function HelpPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
+          { icon: Compass, title: 'Product tour', desc: 'A guided walkthrough of the Dashboard, Patients, Reports, and Exercise Library.', cta: 'Start tour →', onCta: handleStartTour },
           { icon: FileText, title: 'Documentation', desc: 'Full guides for every feature — onboarding, exercises, reports.', cta: '42 articles →' },
           { icon: Video, title: 'Video tutorials', desc: 'Walkthroughs from the TMJConnect clinical team. Under 5 minutes each.', cta: '12 videos →' },
           { icon: MessageCircle, title: 'Contact support', desc: 'Human support via email or live chat. 4-hour response on business days.', cta: 'Start a conversation →', onCta: () => document.getElementById('still-need-help')?.scrollIntoView({ behavior: 'smooth' }) },

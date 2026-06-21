@@ -30,7 +30,7 @@ const schema = z.object({
       const age  = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
       return age >= 18 && age <= 100
     }, 'Must be a valid date of birth'),
-  phone:          z.string().optional(),
+  phone:          z.string().min(1, 'Phone number is required'),
   license_type:   z.string().min(1, 'Select a credential'),
   specialty:      z.string().min(1, 'Select a specialty'),
   clinic_name:    z.string().min(2, 'Clinic name is required'),
@@ -50,9 +50,9 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 const COUNTRIES = [
-  { value: 'US',     label: 'United States' },
-  { value: 'Canada', label: 'Canada' },
-  { value: 'India',  label: 'India' },
+  { value: 'US', label: 'United States' },
+  { value: 'CA', label: 'Canada' },
+  { value: 'IN', label: 'India' },
 ]
 
 const CREDENTIALS = [
@@ -525,7 +525,7 @@ export default function RegisterPage() {
 
   async function nextFormStep() {
     const valid = await trigger([
-      'first_name', 'last_name', 'email', 'date_of_birth',
+      'first_name', 'last_name', 'email', 'date_of_birth', 'phone',
       'license_type', 'specialty', 'clinic_name', 'country',
     ])
     if (valid) setFormStep(2)
@@ -540,7 +540,7 @@ export default function RegisterPage() {
         last_name:     data.last_name,
         email:         data.email,
         date_of_birth: data.date_of_birth,
-        phone:         data.phone || undefined,
+        phone:         data.phone,
         license_type:  data.license_type,
         specialty:     data.specialty,
         clinic_name:   data.clinic_name,
@@ -654,7 +654,7 @@ export default function RegisterPage() {
                 {...register('date_of_birth')}
               />
 
-              <Input label="Phone (optional)" type="tel"
+              <Input label="Phone *" type="tel"
                 placeholder="+1 (415) 555-0198"
                 hint="E.164 format — used as SMS MFA fallback"
                 error={errors.phone?.message}
@@ -732,7 +732,7 @@ export default function RegisterPage() {
                   onClick={() => setFormStep(1)} className="flex-1">
                   ← Back
                 </Button>
-                <Button type="submit" size="lg" loading={isSubmitting} className="flex-1">
+                <Button type="submit" size="lg" loading={isSubmitting} className="flex-1 whitespace-nowrap">
                   Create account <ArrowRight size={16} />
                 </Button>
               </div>

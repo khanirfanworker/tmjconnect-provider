@@ -23,6 +23,7 @@ interface AuthState {
   isMfaPending: boolean
   mfaToken: string | null         // short-lived token between login → MFA verify
   authInitialized: boolean        // true once startup token refresh attempt is done
+  tourCompletedIds: string[]      // provider IDs who've seen/skipped the product tour — persisted
 
   setTokens: (access: string, refresh: string) => void
   setProvider: (provider: Provider) => void
@@ -31,6 +32,7 @@ interface AuthState {
   setMfaToken: (token: string | null) => void
   setAuthInitialized: (initialized: boolean) => void
   updateActivity: () => void
+  markTourCompleted: (providerId: string) => void
   logout: () => void
 }
 
@@ -46,6 +48,7 @@ export const useAuthStore = create<AuthState>()(
       isMfaPending: false,
       mfaToken: null,
       authInitialized: false,
+      tourCompletedIds: [],
 
       setTokens: (access, refresh) => {
         set({
@@ -67,6 +70,12 @@ export const useAuthStore = create<AuthState>()(
 
       updateActivity: () => set({ lastActivityAt: Date.now() }),
 
+      markTourCompleted: (providerId) => set((state) => ({
+        tourCompletedIds: state.tourCompletedIds.includes(providerId)
+          ? state.tourCompletedIds
+          : [...state.tourCompletedIds, providerId],
+      })),
+
       logout: () => {
         set({
           provider: null,
@@ -85,11 +94,12 @@ export const useAuthStore = create<AuthState>()(
       name: 'tmj-auth',
       // Persist provider info and refresh token — NOT the access token
       partialize: (state) => ({
-        provider:        state.provider,
-        refreshToken:    state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-        mfaVerified:     state.mfaVerified,
-        lastActivityAt:  state.lastActivityAt,
+        provider:         state.provider,
+        refreshToken:     state.refreshToken,
+        isAuthenticated:  state.isAuthenticated,
+        mfaVerified:      state.mfaVerified,
+        lastActivityAt:   state.lastActivityAt,
+        tourCompletedIds: state.tourCompletedIds,
       }),
     }
   )

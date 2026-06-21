@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 
 const STEPS = [
   { icon: Users, title: 'Invite your first patient', desc: 'Generate an invite code or send an email invite to link your first patient.', action: 'Invite patient', href: '/invite' },
-  { icon: Play,  title: 'Upload an exercise video', desc: 'Add exercises to your library and assign them to patients with a frequency.', action: 'Go to exercises', href: '/exercises' },
+  { icon: Play,  title: 'Assign an exercise', desc: 'Browse the exercise library and assign a video to a patient with a custom frequency.', action: 'Go to exercises', href: '/exercises' },
   { icon: FileText, title: 'Review patient reports', desc: 'When patients submit symptom reports you\'ll see them in your inbox.', action: 'Go to reports', href: '/reports' },
 ]
 

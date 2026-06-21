@@ -37,17 +37,17 @@ export function Sidebar({ onClose }: SidebarProps) {
   const unreviewedCount = reports.filter((r) => r.status === 'unreviewed').length
 
   const WORKSPACE_NAV = [
-    { to: '/dashboard',  label: 'Dashboard',       Icon: LayoutDashboard, badge: null,                                     badgeUrgent: false },
-    { to: '/patients',   label: 'Patients',         Icon: Users,           badge: patientCount || null,                     badgeUrgent: false },
-    { to: '/reports',    label: 'Reports',          Icon: FileText,        badge: urgentCount || unreviewedCount || null,   badgeUrgent: urgentCount > 0 },
-    { to: '/exercises',  label: 'Exercise Library', Icon: Play,            badge: null,                                     badgeUrgent: false },
-    { to: '/education',  label: 'Education',        Icon: GraduationCap,   badge: null,                                     badgeUrgent: false },
+    { to: '/dashboard',  label: 'Dashboard',       Icon: LayoutDashboard, badge: null,                                     badgeUrgent: false, tourId: 'nav-dashboard' },
+    { to: '/patients',   label: 'Patients',         Icon: Users,           badge: patientCount || null,                     badgeUrgent: false, tourId: 'nav-patients' },
+    { to: '/reports',    label: 'Reports',          Icon: FileText,        badge: urgentCount || unreviewedCount || null,   badgeUrgent: urgentCount > 0, tourId: 'nav-reports' },
+    { to: '/exercises',  label: 'Exercise Library', Icon: Play,            badge: null,                                     badgeUrgent: false, tourId: 'nav-exercises' },
+    { to: '/education',  label: 'Education',        Icon: GraduationCap,   badge: null,                                     badgeUrgent: false, tourId: undefined },
   ]
 
   const MANAGE_NAV = [
-    { to: '/invite',  label: 'Invite & Link',  Icon: LinkIcon },
-    { to: '/profile', label: 'Settings',       Icon: Settings },
-    { to: '/help',    label: 'Help & Support', Icon: HelpCircle },
+    { to: '/invite',  label: 'Invite & Link',  Icon: LinkIcon, tourId: 'nav-invite' },
+    { to: '/profile', label: 'Settings',       Icon: Settings, tourId: undefined },
+    { to: '/help',    label: 'Help & Support', Icon: HelpCircle, tourId: undefined },
   ]
 
   async function handleLogout() {
@@ -103,11 +103,12 @@ export function Sidebar({ onClose }: SidebarProps) {
           Workspace
         </p>
         <nav className="space-y-0.5">
-          {WORKSPACE_NAV.map(({ to, label, Icon, badge, badgeUrgent }) => (
+          {WORKSPACE_NAV.map(({ to, label, Icon, badge, badgeUrgent, tourId }) => (
             <NavLink
               key={to}
               to={to}
               onClick={onClose}
+              data-tour={tourId}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -151,11 +152,12 @@ export function Sidebar({ onClose }: SidebarProps) {
           Manage
         </p>
         <nav className="space-y-0.5">
-          {MANAGE_NAV.map(({ to, label, Icon }) => (
+          {MANAGE_NAV.map(({ to, label, Icon, tourId }) => (
             <NavLink
               key={to}
               to={to}
               onClick={onClose}
+              data-tour={tourId}
               className={({ isActive }) =>
                 cn('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                    isActive ? 'text-white' : 'hover:bg-white/10')

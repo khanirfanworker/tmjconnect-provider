@@ -52,6 +52,7 @@ describe('authService', () => {
         password:     'Pass123!',
         first_name:   'Jane',
         last_name:    'Doe',
+        phone:        '+14155550198',
         license_type: 'DDS',
         specialty:    'TMJ',
         clinic_name:  'Pain Center',
@@ -74,7 +75,7 @@ describe('authService', () => {
         data: { data: { user_id: 'u_nested', message: 'ok' } },
       })
       const result = await authService.register({
-        email: 'a@b.com', password: 'p', first_name: 'A', last_name: 'B',
+        email: 'a@b.com', password: 'p', first_name: 'A', last_name: 'B', phone: '+14155550198',
         license_type: 'DDS', specialty: 'TMJ', clinic_name: 'C', country: 'US',
       })
       expect(result.user_id).toBe('u_nested')
